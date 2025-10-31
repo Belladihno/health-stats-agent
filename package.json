@@ -1,0 +1,33 @@
+{
+  "name": "health-stats-agent",
+  "version": "1.0.0",
+  "description": "Health statistics agent for Telex using Mastra A2A protocol",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "mastra dev",
+    "deploy": "mastra deploy",
+    "test": "node test-local.js"
+  },
+  "keywords": [
+    "mastra",
+    "a2a",
+    "health",
+    "statistics"
+  ],
+  "author": "Abimbola Omisakin",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@mastra/core": "^0.23.3",
+    "@mastra/libsql": "^0.16.1",
+    "@mastra/loggers": "^0.10.18",
+    "@mastra/memory": "^0.15.10",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "mastra": "^0.17.7",
+    "typescript": "^5.9.3"
+  }
+}
