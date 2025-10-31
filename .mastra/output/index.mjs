@@ -390,7 +390,7 @@ console.log("healthAgent import (raw):", healthAgent);
 console.log("Initializing Health Statistics Agent...");
 const mastra = new Mastra({
   agents: {
-    "health-agent": healthAgent
+    healthAgent
   },
   storage: new LibSQLStore({
     url: "file:./mastra-storage.db"

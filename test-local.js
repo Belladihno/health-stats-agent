@@ -5,6 +5,9 @@ const testQueries = [
   "Compare life expectancy between Japan and India",
 ];
 
+let totalTime = 0; // To track total time
+let successfulTests = 0;
+
 async function testAgent(query) {
   console.log(`\n${"=".repeat(60)}`);
   console.log(`Testing: "${query}"`);
@@ -34,8 +37,10 @@ async function testAgent(query) {
   };
 
   try {
+    const start = performance.now();
+
     const response = await fetch(
-      "http://localhost:4111/a2a/agent/health-agent",
+      "http://localhost:4111/a2a/agent/healthAgent",
       {
         method: "POST",
         headers: {
@@ -45,13 +50,21 @@ async function testAgent(query) {
       }
     );
 
+    const end = performance.now();
+    const duration = ((end - start) / 1000).toFixed(2); // seconds
+
     const data = await response.json();
 
     if (data.result?.status?.message?.parts?.[0]?.text) {
       console.log("\n✅ Response:");
       console.log(data.result.status.message.parts[0].text);
+      console.log(`⏱️ Time taken: ${duration} seconds`);
+
+      totalTime += parseFloat(duration);
+      successfulTests++;
     } else if (data.error) {
       console.log("\n❌ Error:", data.error.message);
+      console.log(`⏱️ Time taken: ${duration} seconds`);
     }
   } catch (error) {
     console.log("\n❌ Request failed:", error.message);
@@ -69,6 +82,15 @@ async function runTests() {
 
   console.log(`\n${"=".repeat(60)}`);
   console.log("✅ All tests completed!");
+  console.log("=".repeat(60));
+
+  if (successfulTests > 0) {
+    const avgTime = (totalTime / successfulTests).toFixed(2);
+    console.log(`📊 Average response time: ${avgTime} seconds`);
+  } else {
+    console.log("⚠️ No successful tests to calculate average time.");
+  }
+
   console.log("=".repeat(60));
 }
 
