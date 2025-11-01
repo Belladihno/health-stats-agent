@@ -48,7 +48,8 @@ Always use the healthStatsTool to fetch actual data - never make up statistics.
   tools: { healthStatsTool },
   memory: new Memory({
     storage: new LibSQLStore({
-      url: "file:./health-agent.db",
+      url: process.env.DATABASE_URL!,
+      authToken: process.env.DATABASE_AUTH_TOKEN,
     }),
   }),
 });

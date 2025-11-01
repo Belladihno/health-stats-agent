@@ -212,7 +212,8 @@ Always use the healthStatsTool to fetch actual data - never make up statistics.
   tools: { healthStatsTool },
   memory: new Memory({
     storage: new LibSQLStore({
-      url: "file:./health-agent.db"
+      url: process.env.DATABASE_URL,
+      authToken: process.env.DATABASE_AUTH_TOKEN
     })
   })
 });
@@ -359,7 +360,8 @@ const mastra = new Mastra({
     healthAgent
   },
   storage: new LibSQLStore({
-    url: "file:./mastra-storage.db"
+    url: process.env.DATABASE_URL,
+    authToken: process.env.DATABASE_AUTH_TOKEN
   }),
   logger: new PinoLogger({
     name: "HealthStatsAgent",

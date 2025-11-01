@@ -17,7 +17,7 @@
   ],
   "author": "Abimbola Omisakin",
   "license": "MIT",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@mastra/core": "^0.23.3",
     "@mastra/libsql": "^0.16.1",

@@ -58,29 +58,3 @@ export const COUNTRY_CODES: Record<string, string> = {
   australia: "AUS",
   "new zealand": "NZL",
 };
-
-// export interface WorldBankMetadata {
-//   page: number;
-//   pages: number;
-//   per_page: string;
-//   total: number;
-// }
-
-// export interface IndicatorData {
-//   indicator: {
-//     id: string;
-//     value: string;
-//   };
-//   country: {
-//     id: string;
-//     value: string;
-//   };
-//   countryiso3code: string;
-//   date: string;
-//   value: number | null;
-//   unit?: string;
-//   obs_status?: string;
-//   decimal?: number;
-// }
-
-// export type WorldBankResponse = [WorldBankMetadata, IndicatorData[]];
