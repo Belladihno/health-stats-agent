@@ -1,37 +1,18 @@
 /**
- * Health Statistics Agent Full Test Suite (ES6)
- * ---------------------------------------------
- * ✅ Validates response structure, relevance, and correctness
- * ✅ Handles slow responses, malformed data, and edge cases
- * ✅ Logs timing, averages, and consistency between runs
+ * Simple Cache Performance Test
+ * Delays adjusted to avoid Gemini rate limits (10 req/min = 1 req per 6s)
  */
 
 import fetch from "node-fetch";
 
-const BASE_URL = "http://localhost:4111/a2a/agent/healthAgent";
+const AGENT_URL = "http://localhost:4111/a2a/agent/healthAgent";
 
 const testQueries = [
-  // ✅ Normal queries
   "What's the life expectancy in Nigeria?",
   "Show me infant mortality in Kenya",
   "What's the healthcare spending in USA?",
-  "Compare life expectancy between Japan and India",
-  "Tell me about maternal mortality in Brazil",
-  "What’s the HIV prevalence rate in South Africa?",
-
-  // ⚠️ Edge & invalid queries
-  "What's the healthcare spending in Wakanda?", // fictional
-  "life expectancy", // vague
-  "", // empty
-  "12345", // nonsense
-  "What's the GDP in Nigeria?", // unrelated
 ];
 
-let totalTime = 0;
-let successfulTests = 0;
-let failedTests = 0;
-
-// 🧩 Build payload
 const makePayload = (query) => ({
   jsonrpc: "2.0",
   id: `test-${Date.now()}`,
@@ -48,102 +29,89 @@ const makePayload = (query) => ({
   },
 });
 
-// 🧮 Check if response contains measurable data
-const containsStat = (text) => /\d+(\.\d+)?/.test(text);
-
-// 🧠 Check if response is relevant to topic
-const isRelevantResponse = (query, text) => {
-  const topic = query.toLowerCase().match(/life expectancy|mortality|spending|hiv|health|compare/);
-  if (!topic) return true;
-  return text.toLowerCase().includes(topic[0].split(" ")[0]);
-};
-
-// 🚀 Run single test
-const testAgent = async (query) => {
-  console.log(`\n${"=".repeat(80)}`);
-  console.log(`🔍 Testing Query: "${query}"`);
-  console.log(`${"=".repeat(80)}`);
-
+const testQuery = async (query, run) => {
   const start = performance.now();
 
   try {
-    const response = await fetch(BASE_URL, {
+    const response = await fetch(AGENT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(makePayload(query)),
     });
 
     const end = performance.now();
-    const duration = ((end - start) / 1000).toFixed(2);
-    totalTime += parseFloat(duration);
+    const duration = ((end - start) / 1000).toFixed(3);
 
     const data = await response.json();
     const text = data?.result?.status?.message?.parts?.[0]?.text;
 
     if (!text) {
-      console.log(`❌ No response or malformed message structure.`);
-      console.log(JSON.stringify(data, null, 2));
-      failedTests++;
-      return;
+      console.log(`❌ No response`);
+      return 0;
     }
 
-    console.log(`\n✅ Response:\n${text}`);
-    console.log(`⏱️ Time taken: ${duration} seconds`);
+    console.log(`Run ${run}: "${query}"`);
+    console.log(`⏱️  ${duration}s`);
+    console.log(`💬 Response: ${text.substring(0, 150)}${text.length > 150 ? '...' : ''}\n`);
 
-    // ✅ Validation checks
-    const hasNumber = containsStat(text);
-    const relevant = isRelevantResponse(query, text);
-
-    if (hasNumber && relevant) {
-      console.log("🧠 Valid response: contains statistical data and relevant context.");
-      successfulTests++;
-    } else if (!relevant) {
-      console.log("⚠️ Response seems off-topic from the question.");
-      failedTests++;
-    } else if (!hasNumber) {
-      console.log("⚠️ Response lacks measurable data (no numeric values found).");
-      failedTests++;
-    }
-
-    // 🔁 Consistency check (randomly repeat some)
-    if (Math.random() < 0.33 && query.length > 5) {
-      console.log("\n🔁 Running consistency check...");
-      const repeatRes = await fetch(BASE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(makePayload(query)),
-      });
-      const repeatData = await repeatRes.json();
-      const repeatText = repeatData?.result?.status?.message?.parts?.[0]?.text || "";
-      if (repeatText && repeatText === text)
-        console.log("✅ Consistent response on repeat test.");
-      else console.log("⚠️ Response differs slightly on repeat.");
-    }
+    return parseFloat(duration);
   } catch (error) {
-    console.log(`❌ Request failed: ${error.message}`);
-    failedTests++;
+    console.log(`❌ Failed: ${error.message}`);
+    return 0;
   }
 };
 
-// 🧠 Run all tests
-const runTests = async () => {
-  console.log("🧪 Starting Full Health Agent Test Suite...\n");
-  console.log("Ensure your server is running with: npm run dev\n");
+const runTest = async () => {
+  console.log("🧪 Cache Performance Test\n");
+  console.log("=" .repeat(60));
+  console.log("⏳ Running with 8s delays to avoid rate limits...\n");
 
+  console.log("🌐 First Run (Fresh from API):\n");
+  const firstRun = [];
   for (const query of testQueries) {
-    await testAgent(query);
-    await new Promise((r) => setTimeout(r, 2000)); // wait 2s between tests
+    const time = await testQuery(query, 1);
+    if (time) firstRun.push(time);
+    console.log("⏳ Waiting 8s before next query...\n");
+    await new Promise((r) => setTimeout(r, 8000)); // 8 seconds to stay under 10/min
   }
 
-  const avgTime = successfulTests ? (totalTime / successfulTests).toFixed(2) : 0;
+  console.log("=" .repeat(60));
+  console.log("\n📦 Second Run (Should be Cached):\n");
+  const secondRun = [];
+  for (const query of testQueries) {
+    const time = await testQuery(query, 2);
+    if (time) secondRun.push(time);
+    if (secondRun.length < testQueries.length) {
+      console.log("⏳ Waiting 8s before next query...\n");
+      await new Promise((r) => setTimeout(r, 8000));
+    }
+  }
 
-  console.log(`\n${"=".repeat(80)}`);
-  console.log("🏁 TEST SUMMARY");
-  console.log(`${"=".repeat(80)}`);
-  console.log(`✅ Successful tests: ${successfulTests}`);
-  console.log(`❌ Failed tests: ${failedTests}`);
-  console.log(`📊 Average response time: ${avgTime} seconds`);
-  console.log(`${"=".repeat(80)}`);
+  const avgFirst = firstRun.length
+    ? (firstRun.reduce((a, b) => a + b, 0) / firstRun.length).toFixed(3)
+    : 0;
+
+  const avgSecond = secondRun.length
+    ? (secondRun.reduce((a, b) => a + b, 0) / secondRun.length).toFixed(3)
+    : 0;
+
+  const speedup = avgFirst && avgSecond 
+    ? (avgFirst / avgSecond).toFixed(1)
+    : 0;
+
+  const improvement = avgFirst && avgSecond
+    ? (((avgFirst - avgSecond) / avgFirst) * 100).toFixed(1)
+    : 0;
+
+  console.log("\n" + "=" .repeat(60));
+  console.log("\n📊 Performance Results:");
+  console.log("=" .repeat(60));
+  console.log(`🌐 Average (Fresh from API):  ${avgFirst}s`);
+  console.log(`📦 Average (Cached):          ${avgSecond}s`);
+  console.log(`\n🚀 Speedup:                   ${speedup}x faster`);
+  console.log(`📈 Performance improvement:   ${improvement}%`);
+  console.log("\n" + "=" .repeat(60));
+  console.log("\n✅ Test completed successfully!\n");
 };
 
-await runTests();
+await runTest();

@@ -96,6 +96,92 @@ const COUNTRY_CODES = {
   "new zealand": "NZL"
 };
 
+class CacheService {
+  constructor(store) {
+    this.tableName = "health_stats_cache";
+    this.initialized = false;
+    this.store = store;
+  }
+  async init() {
+    if (this.initialized) return;
+    try {
+      const client = this.store.client;
+      if (!client) {
+        console.warn("LibSQL client not available, cache disabled");
+        return;
+      }
+      await client.execute(`DROP TABLE IF EXISTS ${this.tableName}`);
+      await client.execute(`
+        CREATE TABLE ${this.tableName} (
+          key TEXT PRIMARY KEY,
+          data TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL
+        )
+      `);
+      this.initialized = true;
+      console.log("\u2705 Cache initialized");
+    } catch (error) {
+      console.error("Cache init failed:", error);
+    }
+  }
+  async get(key) {
+    await this.init();
+    if (!this.initialized) return null;
+    try {
+      const client = this.store.client;
+      const now = Date.now();
+      const result = await client.execute({
+        sql: `SELECT data FROM ${this.tableName} WHERE key = ? AND expires_at > ?`,
+        args: [key, now]
+      });
+      if (result.rows && result.rows.length > 0) {
+        console.log(`\u{1F4E6} Cache HIT: ${key}`);
+        return JSON.parse(result.rows[0].data);
+      }
+      console.log(`\u{1F310} Cache MISS: ${key}`);
+      return null;
+    } catch (error) {
+      console.error("Cache read error:", error);
+      return null;
+    }
+  }
+  async set(key, data, ttlMs) {
+    await this.init();
+    if (!this.initialized) return;
+    try {
+      const client = this.store.client;
+      const now = Date.now();
+      const expiresAt = now + ttlMs;
+      await client.execute({
+        sql: `INSERT OR REPLACE INTO ${this.tableName} (key, data, created_at, expires_at) VALUES (?, ?, ?, ?)`,
+        args: [key, JSON.stringify(data), now, expiresAt]
+      });
+      console.log(`\u2705 Cached: ${key}`);
+    } catch (error) {
+      console.error("Cache write error:", error);
+    }
+  }
+  async cleanup() {
+    await this.init();
+    if (!this.initialized) return;
+    try {
+      const client = this.store.client;
+      await client.execute({
+        sql: `DELETE FROM ${this.tableName} WHERE expires_at <= ?`,
+        args: [Date.now()]
+      });
+    } catch (error) {
+      console.error("Cache cleanup error:", error);
+    }
+  }
+}
+const CACHE_TTL = 90 * 24 * 60 * 60 * 1e3;
+
+let cacheService$1 = null;
+const initHealthToolCache = (cache) => {
+  cacheService$1 = cache;
+};
 const healthStatsTool = createTool({
   id: "get-health-stats",
   description: `Get country-level health statistics from World Bank. Available indicators:
@@ -136,8 +222,13 @@ const healthStatsTool = createTool({
       );
     }
     const indicatorCode = INDICATORS[indicator];
+    const cacheKey = `health:${countryCode}:${indicator}`;
+    if (cacheService$1) {
+      const cached = await cacheService$1.get(cacheKey);
+      if (cached) return cached;
+    }
     const apiUrl = `https://api.worldbank.org/v2/country/${countryCode}/indicator/${indicatorCode}?format=json&mrnev=1&per_page=1`;
-    console.log(`Fetching data from: ${apiUrl}`);
+    console.log(`\u{1F310} Fetching from World Bank API`);
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 1e4);
@@ -177,7 +268,7 @@ const healthStatsTool = createTool({
         skilled_births: "% of total births",
         hiv_prevalence: "% of population ages 15-49"
       };
-      return {
+      const result = {
         country: latestData.country.value,
         countryCode: latestData.countryiso3code,
         indicator,
@@ -187,6 +278,10 @@ const healthStatsTool = createTool({
         unit: units[indicator],
         success: true
       };
+      if (cacheService$1) {
+        await cacheService$1.set(cacheKey, result, CACHE_TTL);
+      }
+      return result;
     } catch (error) {
       if (error instanceof Error) {
         if (error.name === "AbortError") {
@@ -387,16 +482,18 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
   }
 });
 
-console.log("healthAgent import (raw):", healthAgent);
 console.log("Initializing Health Statistics Agent...");
+const storage = new LibSQLStore({
+  url: process.env.DATABASE_URL,
+  authToken: process.env.DATABASE_AUTH_TOKEN
+});
+const cacheService = new CacheService(storage);
+initHealthToolCache(cacheService);
 const mastra = new Mastra({
   agents: {
     healthAgent
   },
-  storage: new LibSQLStore({
-    url: process.env.DATABASE_URL,
-    authToken: process.env.DATABASE_AUTH_TOKEN
-  }),
+  storage,
   logger: new PinoLogger({
     name: "HealthStatsAgent",
     level: "info"
@@ -414,9 +511,10 @@ const mastra = new Mastra({
     apiRoutes: [a2aAgentRoute]
   }
 });
-console.log("Health Statistics Agent initialized successfully!");
-const registeredAgents = mastra.getAgents?.() ?? {};
-console.log("Registered agents:", Object.keys(registeredAgents));
+setInterval(() => cacheService.cleanup(), 6 * 60 * 60 * 1e3);
+cacheService.cleanup();
+console.log("\u2705 Health Statistics Agent initialized!");
+console.log("Registered agents:", Object.keys(mastra.getAgents?.() ?? {}));
 
 // src/utils/mime.ts
 var getMimeType = (filename, mimes = baseMimes) => {

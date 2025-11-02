@@ -1,6 +1,13 @@
 import { createTool } from "@mastra/core";
 import { z } from "zod";
 import { COUNTRY_CODES, INDICATORS } from "../utils/helper";
+import { CacheService, CACHE_TTL } from "../services/cache.service";
+
+let cacheService: CacheService | null = null;
+
+export const initHealthToolCache = (cache: CacheService) => {
+  cacheService = cache;
+};
 
 export const healthStatsTool = createTool({
   id: "get-health-stats",
@@ -52,14 +59,22 @@ export const healthStatsTool = createTool({
     }
 
     const indicatorCode = INDICATORS[indicator];
+    const cacheKey = `health:${countryCode}:${indicator}`;
 
+    // Try cache first
+    if (cacheService) {
+      const cached = await cacheService.get<any>(cacheKey);
+      if (cached) return cached;
+    }
+
+    // Fetch from API
     const apiUrl = `https://api.worldbank.org/v2/country/${countryCode}/indicator/${indicatorCode}?format=json&mrnev=1&per_page=1`;
 
-    console.log(`Fetching data from: ${apiUrl}`);
+    console.log(`🌐 Fetching from World Bank API`);
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const response = await fetch(apiUrl, {
         signal: controller.signal,
@@ -77,7 +92,6 @@ export const healthStatsTool = createTool({
       }
 
       const data = (await response.json()) as any;
-
       const indicators = data[1];
 
       if (!indicators || indicators.length === 0 || !indicators[0]?.value) {
@@ -106,7 +120,7 @@ export const healthStatsTool = createTool({
         hiv_prevalence: "% of population ages 15-49",
       };
 
-      return {
+      const result = {
         country: latestData.country.value,
         countryCode: latestData.countryiso3code,
         indicator,
@@ -116,6 +130,13 @@ export const healthStatsTool = createTool({
         unit: units[indicator],
         success: true,
       };
+
+      // Cache the result
+      if (cacheService) {
+        await cacheService.set(cacheKey, result, CACHE_TTL);
+      }
+
+      return result;
     } catch (error) {
       if (error instanceof Error) {
         if (error.name === "AbortError") {
