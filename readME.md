@@ -55,7 +55,7 @@ Ask the agent about health statistics for any country, and it will:
 - **Framework**: [Mastra](https://mastra.ai) (v0.17.7)
 - **Runtime**: Node.js + TypeScript
 - **Database**: LibSQL (Turso) - persistent SQLite
-- **AI Model**: Google Gemini 1.5 Flash
+- **AI Model**: groq/llama-3.1-8b-instant
 - **API**: World Bank Open Data API
 - **Protocol**: A2A (Agent-to-Agent) JSON-RPC 2.0
 
@@ -66,7 +66,7 @@ Ask the agent about health statistics for any country, and it will:
 ### Prerequisites
 - Node.js 18+ and npm
 - Turso account ([sign up free](https://turso.tech))
-- Google Gemini API key ([get one](https://ai.google.dev))
+- Groq API key ([get one](https://console.groq.com))
 
 ### Setup
 
@@ -89,7 +89,7 @@ DATABASE_URL=libsql://your-database.turso.io
 DATABASE_AUTH_TOKEN=your-turso-auth-token
 
 # Google Gemini API
-GOOGLE_GENERATIVE_AI_API_KEY=your-gemini-api-key
+GROQ_API_KEY=your-groq-api-key
 
 4. **Build the project**
 ```bash
@@ -283,7 +283,7 @@ https://[your-deployment].mastra.cloud/a2a/agent/healthAgent
 Ensure these are set in Mastra Cloud:
 - `DATABASE_URL` - Your Turso database URL
 - `DATABASE_AUTH_TOKEN` - Your Turso auth token
-- `GOOGLE_GENERATIVE_AI_API_KEY` - Your Gemini API key
+- `GROQ_API_KEY` - Your Groq API key
 
 
 ## 📈 Monitoring
@@ -330,7 +330,7 @@ DROP TABLE IF EXISTS health_stats_cache;
 
 - **First query**: Expected (3-6s) - fetching from World Bank API
 - **Repeated queries**: Should be faster (2-4s) - using cache
-- **Rate limits**: Gemini free tier = 10 requests/minute
+- **Rate limits**: Groq-30 requests/minute
 
 ### Agent Not Responding?
 
@@ -369,7 +369,7 @@ MIT License - feel free to use this project for learning or production!
 - [Mastra](https://mastra.ai) - AI agent framework
 - [World Bank Open Data](https://data.worldbank.org) - Health statistics API
 - [Turso](https://turso.tech) - LibSQL database
-- [Google Gemini](https://ai.google.dev) - AI model
+- [Groq](https://console.groq.com) - AI model
 - [Telex.im](https://telex.im) - Communication platform
 
 ---

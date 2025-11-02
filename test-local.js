@@ -5,12 +5,12 @@
 
 import fetch from "node-fetch";
 
-const AGENT_URL = "https://purring-orange-gigabyte-2e76ca55-15fb-4876-9b2d-41529fc49730.mastra.cloud/a2a/agent/healthAgent";
+const AGENT_URL = "http://localhost:4111/a2a/agent/healthAgent";
 
 const testQueries = [
-  "What's the life expectancy in Nigeria?",
-  "Show me infant mortality in Kenya",
-  "What's the healthcare spending in USA?",
+  "What's the life expectancy in USA?",
+  "Show me infant mortality in Nigeria",
+  "What's the healthcare spending in Ghana?",
 ];
 
 const makePayload = (query) => ({

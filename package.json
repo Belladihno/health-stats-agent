@@ -19,6 +19,7 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
+    "@ai-sdk/groq": "^2.0.27",
     "@mastra/core": "^0.23.3",
     "@mastra/libsql": "^0.16.1",
     "@mastra/loggers": "^0.10.18",

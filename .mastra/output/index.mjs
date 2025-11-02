@@ -337,7 +337,7 @@ You: [Fetch both] "Based on World Bank data: Kenya has an infant mortality rate 
 
 Always use the healthStatsTool to fetch actual data - never make up statistics.
   `,
-  model: "google/gemini-1.5-flash",
+  model: "groq/llama-3.1-8b-instant",
   tools: { healthStatsTool },
   memory: new Memory$1({
     storage: new LibSQLStore({
