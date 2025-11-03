@@ -6,8 +6,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "mastra dev",
-    "deploy": "mastra deploy",
-    "test": "node test-local.js"
+    "deploy": "mastra deploy"
   },
   "keywords": [
     "mastra",
@@ -29,6 +28,8 @@
   "devDependencies": {
     "@types/node": "^24.9.2",
     "mastra": "^0.17.7",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
 }
