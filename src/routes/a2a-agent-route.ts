@@ -8,41 +8,47 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       const mastra = c.get("mastra");
       const agentId = c.req.param("agentId");
       const body = await c.req.json();
-      
+
       const { jsonrpc, id: requestId, method, params } = body;
 
       // Validate JSON-RPC
       if (jsonrpc !== "2.0" || !requestId) {
-        return c.json({
-          jsonrpc: "2.0",
-          id: requestId || null,
-          error: { code: -32600, message: "Invalid Request" },
-        }, 400);
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: requestId || null,
+            error: { code: -32600, message: "Invalid Request" },
+          },
+          400
+        );
       }
 
       const agent = mastra.getAgent(agentId);
       if (!agent) {
-        return c.json({
-          jsonrpc: "2.0",
-          id: requestId,
-          error: { code: -32602, message: `Agent '${agentId}' not found` },
-        }, 404);
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: requestId,
+            error: { code: -32602, message: `Agent '${agentId}' not found` },
+          },
+          404
+        );
       }
 
       const { message, configuration } = params || {};
       const isBlocking = configuration?.blocking !== false;
 
       // Convert message
-      const mastraMessages = [{
-        role: message.role,
-        content: message.parts
-          ?.map((part: any) => {
-            if (part.kind === "text") return part.text;
-            if (part.kind === "data") return JSON.stringify(part.data);
-            return "";
-          })
-          .join("\n") || "",
-      }];
+      const mastraMessages = [
+        {
+          role: "user" as const,
+          content:
+            message.parts
+              ?.filter((part: any) => part.kind === "text")
+              .map((part: any) => part.text)
+              .join("\n") || "",
+        },
+      ];
 
       // Execute agent
       const response = await agent.generate(mastraMessages);
@@ -92,13 +98,13 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       if (!isBlocking && configuration?.pushNotificationConfig) {
         const webhookUrl = configuration.pushNotificationConfig.url;
         const webhookToken = configuration.pushNotificationConfig.token;
-        
+
         try {
           await fetch(webhookUrl, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${webhookToken}`,
+              Authorization: `Bearer ${webhookToken}`,
             },
             body: JSON.stringify({
               jsonrpc: "2.0",
@@ -116,18 +122,20 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
         id: requestId,
         result,
       });
-      
     } catch (error: any) {
       console.error("Error processing request:", error);
-      return c.json({
-        jsonrpc: "2.0",
-        id: null,
-        error: {
-          code: -32603,
-          message: "Internal error",
-          data: { details: error.message },
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32603,
+            message: "Internal error",
+            data: { details: error.message },
+          },
         },
-      }, 500);
+        500
+      );
     }
   },
 });

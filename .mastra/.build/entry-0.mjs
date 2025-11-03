@@ -303,7 +303,7 @@ You: [Fetch both] "Based on World Bank data: Kenya has an infant mortality rate 
 
 Always use the healthStatsTool to fetch actual data - never make up statistics.
   `,
-  model: "groq/llama-3.1-8b-instant",
+  model: "groq/llama-3.3-70b-versatile",
   tools: { healthStatsTool },
   memory: new Memory({
     storage: new LibSQLStore({
@@ -316,119 +316,104 @@ Always use the healthStatsTool to fetch actual data - never make up statistics.
 const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
   method: "POST",
   handler: async (c) => {
-    let body;
     try {
       const mastra = c.get("mastra");
       const agentId = c.req.param("agentId");
-      body = await c.req.json();
+      const body = await c.req.json();
       const { jsonrpc, id: requestId, params } = body;
-      console.log(`Received request for agent: ${agentId}`);
-      console.log(`Request ID: ${requestId}`);
       if (jsonrpc !== "2.0" || !requestId) {
-        console.error("Invalid JSON-RPC format");
         return c.json(
           {
             jsonrpc: "2.0",
             id: requestId || null,
-            error: {
-              code: -32600,
-              message: 'Invalid Request: jsonrpc must be "2.0" and id is required'
-            }
+            error: { code: -32600, message: "Invalid Request" }
           },
           400
         );
       }
       const agent = mastra.getAgent(agentId);
       if (!agent) {
-        console.error(`Agent '${agentId}' not found`);
         return c.json(
           {
             jsonrpc: "2.0",
             id: requestId,
-            error: {
-              code: -32602,
-              message: `Agent '${agentId}' not found`
-            }
+            error: { code: -32602, message: `Agent '${agentId}' not found` }
           },
           404
         );
       }
-      const { message, messages, contextId, taskId} = params || {};
-      let messagesList = [];
-      if (message) {
-        messagesList = [message];
-      } else if (messages && Array.isArray(messages)) {
-        messagesList = messages;
-      }
-      console.log(`Processing ${messagesList.length} message(s)`);
-      const mastraMessages = messagesList.map((msg) => ({
-        role: msg.role,
-        content: msg.parts?.map((part) => {
-          if (part.kind === "text") return part.text;
-          if (part.kind === "data") return JSON.stringify(part.data);
-          return "";
-        }).join("\n") || ""
-      }));
-      console.log("Executing agent...");
+      const { message, configuration } = params || {};
+      const isBlocking = configuration?.blocking !== false;
+      const mastraMessages = [
+        {
+          role: "user",
+          content: message.parts?.filter((part) => part.kind === "text").map((part) => part.text).join("\n") || ""
+        }
+      ];
       const response = await agent.generate(mastraMessages);
       const agentText = response.text || "";
-      console.log("Agent response generated successfully");
-      const artifacts = [
-        {
-          artifactId: randomUUID(),
-          name: `${agentId}Response`,
-          parts: [{ kind: "text", text: agentText }]
+      const result = {
+        id: params.taskId || randomUUID(),
+        contextId: params.contextId || randomUUID(),
+        status: {
+          state: "completed",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          message: {
+            messageId: randomUUID(),
+            role: "agent",
+            parts: [{ kind: "text", text: agentText }],
+            kind: "message"
+          }
+        },
+        artifacts: [
+          {
+            artifactId: randomUUID(),
+            name: `${agentId}Response`,
+            parts: [{ kind: "text", text: agentText }]
+          }
+        ],
+        history: [
+          {
+            kind: "message",
+            role: message.role,
+            parts: message.parts,
+            messageId: message.messageId || randomUUID(),
+            taskId: params.taskId || randomUUID()
+          },
+          {
+            kind: "message",
+            role: "agent",
+            parts: [{ kind: "text", text: agentText }],
+            messageId: randomUUID(),
+            taskId: params.taskId || randomUUID()
+          }
+        ],
+        kind: "task"
+      };
+      if (!isBlocking && configuration?.pushNotificationConfig) {
+        const webhookUrl = configuration.pushNotificationConfig.url;
+        const webhookToken = configuration.pushNotificationConfig.token;
+        try {
+          await fetch(webhookUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${webhookToken}`
+            },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: requestId,
+              result
+            })
+          });
+        } catch (error) {
+          console.error("Webhook delivery failed:", error);
         }
-      ];
-      if (response.toolResults && response.toolResults.length > 0) {
-        console.log(
-          `Adding ${response.toolResults.length} tool result(s) as artifacts`
-        );
-        artifacts.push({
-          artifactId: randomUUID(),
-          name: "ToolResults",
-          parts: response.toolResults.map((result) => ({
-            kind: "data",
-            data: result
-          }))
-        });
       }
-      const history = [
-        ...messagesList.map((msg) => ({
-          kind: "message",
-          role: msg.role,
-          parts: msg.parts,
-          messageId: msg.messageId || randomUUID(),
-          taskId: msg.taskId || taskId || randomUUID()
-        })),
-        {
-          kind: "message",
-          role: "agent",
-          parts: [{ kind: "text", text: agentText }],
-          messageId: randomUUID(),
-          taskId: taskId || randomUUID()
-        }
-      ];
       return c.json({
         jsonrpc: "2.0",
         id: requestId,
-        result: {
-          id: taskId || randomUUID(),
-          contextId: contextId || randomUUID(),
-          status: {
-            state: "completed",
-            timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-            message: {
-              messageId: randomUUID(),
-              role: "agent",
-              parts: [{ kind: "text", text: agentText }],
-              kind: "message"
-            }
-          },
-          artifacts,
-          history,
-          kind: "task"
-        }
+        result
       });
     } catch (error) {
       console.error("Error processing request:", error);

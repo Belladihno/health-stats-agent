@@ -337,7 +337,7 @@ You: [Fetch both] "Based on World Bank data: Kenya has an infant mortality rate 
 
 Always use the healthStatsTool to fetch actual data - never make up statistics.
   `,
-  model: "groq/llama-3.1-8b-instant",
+  model: "groq/llama-3.3-70b-versatile",
   tools: { healthStatsTool },
   memory: new Memory$1({
     storage: new LibSQLStore({
@@ -356,30 +356,34 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       const body = await c.req.json();
       const { jsonrpc, id: requestId, params } = body;
       if (jsonrpc !== "2.0" || !requestId) {
-        return c.json({
-          jsonrpc: "2.0",
-          id: requestId || null,
-          error: { code: -32600, message: "Invalid Request" }
-        }, 400);
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: requestId || null,
+            error: { code: -32600, message: "Invalid Request" }
+          },
+          400
+        );
       }
       const agent = mastra.getAgent(agentId);
       if (!agent) {
-        return c.json({
-          jsonrpc: "2.0",
-          id: requestId,
-          error: { code: -32602, message: `Agent '${agentId}' not found` }
-        }, 404);
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: requestId,
+            error: { code: -32602, message: `Agent '${agentId}' not found` }
+          },
+          404
+        );
       }
       const { message, configuration } = params || {};
       const isBlocking = configuration?.blocking !== false;
-      const mastraMessages = [{
-        role: message.role,
-        content: message.parts?.map((part) => {
-          if (part.kind === "text") return part.text;
-          if (part.kind === "data") return JSON.stringify(part.data);
-          return "";
-        }).join("\n") || ""
-      }];
+      const mastraMessages = [
+        {
+          role: "user",
+          content: message.parts?.filter((part) => part.kind === "text").map((part) => part.text).join("\n") || ""
+        }
+      ];
       const response = await agent.generate(mastraMessages);
       const agentText = response.text || "";
       const result = {
@@ -428,7 +432,7 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${webhookToken}`
+              Authorization: `Bearer ${webhookToken}`
             },
             body: JSON.stringify({
               jsonrpc: "2.0",
@@ -447,15 +451,18 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       });
     } catch (error) {
       console.error("Error processing request:", error);
-      return c.json({
-        jsonrpc: "2.0",
-        id: null,
-        error: {
-          code: -32603,
-          message: "Internal error",
-          data: { details: error.message }
-        }
-      }, 500);
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32603,
+            message: "Internal error",
+            data: { details: error.message }
+          }
+        },
+        500
+      );
     }
   }
 });
