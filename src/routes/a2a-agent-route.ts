@@ -74,8 +74,7 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       }
 
       const params = body.params ?? {};
-      let messages =
-        params.messages ?? (params.message ? [params.message] : []);
+      let messages = params.messages ?? (params.message ? [params.message] : []);
 
       messages = messages.map((m: any) => {
         if (m.parts && Array.isArray(m.parts)) {
@@ -83,26 +82,29 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             .filter((p: any) => p.kind === "text")
             .map((p: any) => p.text || p.content || "")
             .filter((text: string) => text.trim().length > 0);
-
+          
           const text = textParts.join("\n").trim();
-
-          return {
-            role: m.role || "user",
-            content: text || "Hello",
+          
+          return { 
+            role: m.role || "user", 
+            content: text || "Hello"
           };
         }
-
+        
         if (m.role && m.content) {
           return { role: m.role, content: String(m.content).trim() };
         }
-
+        
         const content = String(
-          m.content || m.text || m.message || (typeof m === "string" ? m : "")
+          m.content || 
+          m.text || 
+          m.message || 
+          (typeof m === "string" ? m : "")
         ).trim();
-
-        return {
-          role: m.role || "user",
-          content: content || "Hello",
+        
+        return { 
+          role: m.role || "user", 
+          content: content || "Hello"
         };
       });
 
@@ -127,11 +129,7 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             "No text content in response";
         }
 
-        if (
-          !agentText ||
-          agentText === "No response generated" ||
-          agentText === "No text content in response"
-        ) {
+        if (!agentText || agentText === "No response generated" || agentText === "No text content in response") {
           throw new Error("Agent did not return valid text content");
         }
       } catch (genErr: any) {
@@ -142,12 +140,9 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             error: {
               code: -32001,
               message: "Agent generation error",
-              data: {
+              data: { 
                 details: genErr?.message ?? String(genErr),
-                stack:
-                  process.env.NODE_ENV === "development"
-                    ? genErr?.stack
-                    : undefined,
+                stack: process.env.NODE_ENV === "development" ? genErr?.stack : undefined
               },
             },
           },
@@ -162,7 +157,6 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       const result = {
         id: taskId,
         contextId,
-        message: agentText,
         status: {
           state: "completed",
           timestamp: new Date().toISOString(),
@@ -173,7 +167,13 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             kind: "message",
           },
         },
-        artifacts: [], // empty to avoid duplication
+        artifacts: [
+          {
+            artifactId: randomUUID(),
+            name: `${agentId}Response`,
+            parts: [{ kind: "text", text: agentText }],
+          },
+        ],
         history: [
           ...messages.map((m: any) => ({
             kind: "message",
@@ -229,8 +229,7 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             message: "Internal error",
             data: {
               details: err?.message ?? String(err),
-              stack:
-                process.env.NODE_ENV === "development" ? err?.stack : undefined,
+              stack: process.env.NODE_ENV === "development" ? err?.stack : undefined,
             },
           },
         },
