@@ -411,9 +411,7 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       let messages = params.messages ?? (params.message ? [params.message] : []);
       messages = messages.map((m) => {
         if (m.parts && Array.isArray(m.parts)) {
-          const textParts = m.parts.filter((p) => {
-            return p.kind === "text" || p.type === "text" || p.text && typeof p.text === "string";
-          }).map((p) => p.text || p.content || "").filter((text2) => text2.trim().length > 0);
+          const textParts = m.parts.filter((p) => p.kind === "text").map((p) => p.text || p.content || "").filter((text2) => text2.trim().length > 0);
           const text = textParts.join("\n").trim();
           return {
             role: m.role || "user",

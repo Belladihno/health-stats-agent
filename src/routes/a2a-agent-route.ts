@@ -79,9 +79,7 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       messages = messages.map((m: any) => {
         if (m.parts && Array.isArray(m.parts)) {
           const textParts = m.parts
-            .filter((p: any) => {
-              return p.kind === "text" || p.type === "text" || (p.text && typeof p.text === "string");
-            })
+            .filter((p: any) => p.kind === "text")
             .map((p: any) => p.text || p.content || "")
             .filter((text: string) => text.trim().length > 0);
           
