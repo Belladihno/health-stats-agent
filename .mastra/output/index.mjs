@@ -351,22 +351,25 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
     try {
       const mastra = c.get("mastra");
       const agentId = c.req.param("agentId");
+      const rawBody = await c.req.text();
+      console.log("\u{1F50D} ========== INCOMING WEBHOOK REQUEST ==========");
+      console.log("Raw body:", rawBody);
+      console.log("Content-Type:", c.req.header("content-type"));
+      console.log("Agent ID:", agentId);
       let body = {};
       let jsonrpc = "2.0";
       let requestId = randomUUID();
       try {
-        const parsed = await c.req.json().catch(() => null);
-        if (parsed) {
-          body = parsed;
+        if (rawBody && rawBody.trim()) {
+          body = JSON.parse(rawBody);
+          console.log("\u{1F4E6} Parsed body:", JSON.stringify(body, null, 2));
         } else {
-          const raw = await c.req.text();
-          if (raw && raw.trim()) {
-            body = JSON.parse(raw);
-          }
+          console.log("\u26A0\uFE0F Empty request body");
         }
         jsonrpc = body.jsonrpc ?? "2.0";
         requestId = body.id ?? randomUUID();
       } catch (parseError) {
+        console.error("\u274C JSON parse error:", parseError);
         return c.json(
           {
             jsonrpc: "2.0",
@@ -383,6 +386,7 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
         );
       }
       if (jsonrpc !== "2.0") {
+        console.log("\u26A0\uFE0F Invalid JSON-RPC version:", jsonrpc);
         return c.json(
           {
             jsonrpc: "2.0",
@@ -397,6 +401,11 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       }
       const agent = mastra.getAgent(agentId);
       if (!agent) {
+        console.log("\u274C Agent not found:", agentId);
+        console.log(
+          "Available agents:",
+          Object.keys(mastra.getAgents?.() ?? {})
+        );
         return c.json(
           {
             jsonrpc: "2.0",
@@ -413,36 +422,84 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
         );
       }
       const params = body.params ?? {};
+      console.log("\u{1F4CB} Params received:", JSON.stringify(params, null, 2));
       let messages = params.messages ?? (params.message ? [params.message] : []);
-      messages = messages.map((m) => {
-        if (m.parts && !m.role) {
-          const text = m.parts.filter((p) => p.kind === "text").map((p) => p.text).join("\n");
-          return { role: "user", content: text };
+      console.log(
+        "\u{1F4E8} Initial messages array:",
+        JSON.stringify(messages, null, 2)
+      );
+      messages = messages.map((m, index) => {
+        console.log(
+          `\u{1F504} Processing message ${index}:`,
+          JSON.stringify(m, null, 2)
+        );
+        if (m.parts && Array.isArray(m.parts)) {
+          const textParts = m.parts.filter((p) => {
+            return p.kind === "text" || p.type === "text" || p.text && typeof p.text === "string";
+          }).map((p) => p.text || p.content || "").filter((text2) => text2.trim().length > 0);
+          const text = textParts.join("\n").trim();
+          console.log(`  \u2713 Extracted from parts: "${text}"`);
+          return {
+            role: m.role || "user",
+            content: text || "Hello"
+          };
         }
         if (m.role && m.content) {
-          return m;
+          console.log(
+            `  \u2713 Standard format: role=${m.role}, content="${m.content}"`
+          );
+          return { role: m.role, content: String(m.content).trim() };
         }
-        return { role: "user", content: String(m.content || m.text || "") };
+        const content = String(
+          m.content || m.text || m.message || (typeof m === "string" ? m : "")
+        ).trim();
+        console.log(`  \u2713 Fallback extraction: "${content}"`);
+        return {
+          role: m.role || "user",
+          content: content || "Hello"
+        };
       });
-      if (messages.length === 0 || !messages[0].content) {
+      messages = messages.filter((m) => {
+        const hasContent = m.content && m.content.length > 0 && m.content !== "Hello";
+        if (!hasContent) {
+          console.log(
+            "\u26A0\uFE0F Filtered out empty/generic message:",
+            JSON.stringify(m)
+          );
+        }
+        return m.content && m.content.length > 0;
+      });
+      if (messages.length === 0) {
+        console.log("\u26A0\uFE0F No valid messages found, using default");
         messages = [{ role: "user", content: "Hello" }];
       }
+      console.log(
+        "\u2705 Final messages for agent:",
+        JSON.stringify(messages, null, 2)
+      );
       let agentText = "No response generated";
       try {
-        console.log("Calling agent.generate with messages:", JSON.stringify(messages));
+        console.log("\u{1F916} Calling agent.generate...");
         const response = await agent.generate(messages);
-        console.log("Agent response:", JSON.stringify(response));
+        console.log(
+          "\u{1F4E4} Agent raw response:",
+          JSON.stringify(response, null, 2)
+        );
         if (typeof response === "string") {
           agentText = response;
         } else if (response && typeof response === "object") {
           agentText = response.text || response.content || response.message || response.choices?.[0]?.message?.content || "No text content in response";
         }
+        console.log(
+          "\u2705 Extracted agent text:",
+          agentText.substring(0, 200) + "..."
+        );
         if (!agentText || agentText === "No response generated" || agentText === "No text content in response") {
-          console.error("Failed to extract text from agent response:", response);
+          console.error("\u274C Failed to extract text from agent response");
           throw new Error("Agent did not return valid text content");
         }
       } catch (genErr) {
-        console.error("Agent generation error:", genErr);
+        console.error("\u274C Agent generation error:", genErr);
         return c.json(
           {
             jsonrpc: "2.0",
@@ -502,6 +559,10 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       };
       const config = params.configuration ?? {};
       if (config.blocking === false && config.pushNotificationConfig?.url) {
+        console.log(
+          "\u{1F4E4} Sending push notification to:",
+          config.pushNotificationConfig.url
+        );
         fetch(config.pushNotificationConfig.url, {
           method: "POST",
           headers: {
@@ -516,9 +577,10 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             result
           })
         }).catch((err) => {
-          console.error("Push notification failed:", err);
+          console.error("\u274C Push notification failed:", err);
         });
       }
+      console.log("\u2705 ========== REQUEST COMPLETED SUCCESSFULLY ==========\n");
       return c.json(
         {
           jsonrpc: "2.0",
@@ -528,7 +590,10 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
         200
       );
     } catch (err) {
-      console.error("Unhandled error in A2A route:", err);
+      console.error("\u{1F4A5} ========== UNHANDLED ERROR ==========");
+      console.error("Error:", err);
+      console.error("Stack:", err?.stack);
+      console.error("==========================================\n");
       return c.json(
         {
           jsonrpc: "2.0",
