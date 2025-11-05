@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "mastra dev",
-    "deploy": "mastra deploy"
+    "deploy": "mastra deploy",
+    "test:a2a": "tsx test-a2a.ts"
   },
   "keywords": [
     "mastra",

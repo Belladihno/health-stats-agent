@@ -1,52 +1,49 @@
-# Health Statistics Agent for Telex.im
+# Health Statistics Agent
 
-A production-ready AI agent that provides accurate, real-time health statistics for countries worldwide using World Bank data. Built with [Mastra](https://mastra.ai) and integrated with Telex.im via the A2A protocol.
+A production-ready AI agent that provides accurate health statistics for countries worldwide using World Bank data. Built with [Mastra](https://mastra.ai) and compliant with the A2A (Agent-to-Agent) protocol for seamless integration with platforms like Telex.im.
 
-[![Built with Mastra](https://img.shields.io/badge/Built%20with-Mastra-blue)](https://mastra.ai)
-[![Deployed](https://img.shields.io/badge/Status-Deployed-success)](https://purring-orange-gigabyte.mastra.cloud/a2a/agent/healthAgent)
 
 ---
 
 ## 🎯 What It Does
 
-Ask the agent about health statistics for any country, and it will:
-- Fetch real-time data from the World Bank API
-- Provide context and interpretation
-- Cache results for faster responses
-- Handle comparisons between countries
+The Health Statistics Agent provides real-time health data from the World Bank API. Ask questions about any supported country and receive accurate, contextual health statistics.
 
 **Example Queries:**
 - "What's the life expectancy in Nigeria?"
 - "Compare infant mortality between Kenya and Ghana"
-- "Show me healthcare spending in USA"
+- "Show me healthcare expenditure in USA"
 - "What's the HIV prevalence in South Africa?"
 
 ---
 
 ## 🚀 Features
 
-### Core Capabilities
-- **6 Health Indicators**: Life expectancy, infant mortality, healthcare expenditure, immunization coverage, skilled birth attendance, HIV prevalence
-- **50+ Countries**: Major countries across Africa, Americas, Europe, Asia, and Oceania
-- **Intelligent Caching**: 90-day cache with automatic cleanup reduces API calls by 80-90%
-- **Fast Responses**: 1.6x faster for cached queries (39% improvement)
-- **A2A Protocol**: Fully compliant JSON-RPC 2.0 integration with Telex.im
+### Health Indicators
+- **Life Expectancy**: Life expectancy at birth (years)
+- **Infant Mortality**: Infant mortality rate (per 1,000 live births)
+- **Health Expenditure**: Current health expenditure per capita (USD)
+- **Immunization**: Immunization coverage - DPT (% of children ages 12-23 months)
+- **Skilled Births**: Births attended by skilled health staff (% of total births)
+- **HIV Prevalence**: HIV prevalence (% of population ages 15-49)
 
-### Technical Highlights
-- **Persistent Storage**: LibSQL (Turso) for cache and memory
-- **Production-Ready**: Error handling, rate limiting, fault tolerance
-- **Observability**: Built-in logging and tracing
-- **Auto-Cleanup**: Scheduled cache maintenance every 6 hours
+### Supported Countries
+**Africa**: Nigeria, Ghana, Kenya, South Africa, Egypt, Ethiopia, Tanzania, Uganda, Morocco, Algeria
 
----
+**Americas**: USA, Canada, Brazil, Mexico, Argentina, Colombia, Chile
 
-## 📊 Performance
+**Europe**: UK, Germany, France, Italy, Spain, Poland, Netherlands
 
-| Metric | Without Cache | With Cache | Improvement |
-|--------|---------------|------------|-------------|
-| Response Time | 6.3s | 3.9s | **1.6x faster** |
-| API Calls (100 queries) | 100 | 10-20 | **80-90% reduction** |
-| Data Freshness | Real-time | 90 days | **Optimal balance** |
+**Asia**: India, China, Japan, South Korea, Indonesia, Pakistan, Bangladesh, Vietnam, Philippines, Thailand
+
+**Oceania**: Australia, New Zealand
+
+### Technical Features
+- ✅ **A2A Protocol Compliant**: Full JSON-RPC 2.0 support with proper error handling
+- ✅ **Intelligent Caching**: 90-day cache using LibSQL (Turso) reduces API calls
+- ✅ **Error Handling**: Graceful fallbacks and informative error messages
+- ✅ **Memory System**: Conversation context preserved across interactions
+- ✅ **World Bank Integration**: Real-time data from official World Bank API
 
 ---
 
@@ -54,9 +51,9 @@ Ask the agent about health statistics for any country, and it will:
 
 - **Framework**: [Mastra](https://mastra.ai) (v0.17.7)
 - **Runtime**: Node.js + TypeScript
-- **Database**: LibSQL (Turso) - persistent SQLite
-- **AI Model**: groq/llama-3.1-8b-instant
-- **API**: World Bank Open Data API
+- **Database**: LibSQL (Turso) for caching and memory
+- **AI Model**: Groq Llama 3.3 70B Versatile
+- **Data Source**: World Bank Open Data API
 - **Protocol**: A2A (Agent-to-Agent) JSON-RPC 2.0
 
 ---
@@ -68,7 +65,7 @@ Ask the agent about health statistics for any country, and it will:
 - Turso account ([sign up free](https://turso.tech))
 - Groq API key ([get one](https://console.groq.com))
 
-### Setup
+### Setup Steps
 
 1. **Clone the repository**
 ```bash
@@ -82,21 +79,18 @@ npm install
 ```
 
 3. **Configure environment variables**
-Create a `.env` file:
+
+Create a `.env` file in the root directory:
 ```env
 # Turso Database
 DATABASE_URL=libsql://your-database.turso.io
 DATABASE_AUTH_TOKEN=your-turso-auth-token
 
-# Google Gemini API
+# Groq API Key
 GROQ_API_KEY=your-groq-api-key
-
-4. **Build the project**
-```bash
-npm run build
 ```
 
-5. **Start development server**
+4. **Start the development server**
 ```bash
 npm run dev
 ```
@@ -107,91 +101,61 @@ The agent will be available at `http://localhost:4111`
 
 ## 🧪 Testing
 
-### Run Performance Tests
+### A2A Protocol Compliance Tests
+
+Run the comprehensive test suite to verify A2A protocol compliance:
+
 ```bash
-npm run test
+npm run test:a2a
 ```
 
-This will:
-- Test fresh API calls vs cached responses
-- Measure response times and speedup
-- Verify cache functionality
-- Display actual agent responses
+**What's Tested:**
+- ✅ Endpoint Accessibility (2 pts)
+- ✅ A2A Protocol Support - HTTP 200 responses for all cases (5 pts)
+- ✅ Response Format - Proper JSON-RPC 2.0 structure (3 pts)
+- ✅ Health Agent Functionality (Bonus tests)
 
 **Expected Output:**
 ```
-🧪 Cache Performance Test
-============================================================
-🌐 First Run (Fresh from API):
-Run 1: "What's the life expectancy in Nigeria?"
-⏱️  6.336s
-💬 Response: According to the most recent World Bank data...
+🧪 Starting A2A Protocol Compliance Tests...
 
-📦 Second Run (Should be Cached):
-Run 2: "What's the life expectancy in Nigeria?"
-⏱️  3.863s
-💬 Response: According to the most recent World Bank data...
+📡 Section 1: A2A Endpoint Accessibility
+✅ Endpoint exists and responds (1/1 pts)
+✅ Endpoint accepts POST requests (1/1 pts)
 
-📊 Performance Results:
-🚀 Speedup: 1.6x faster
-📈 Performance improvement: 39.0%
-```
+🔌 Section 2: A2A Protocol Support
+✅ Returns HTTP 200 for valid requests (1/1 pts)
+✅ Returns HTTP 200 for invalid JSON-RPC version (1/1 pts)
+✅ Returns HTTP 200 for malformed JSON (1/1 pts)
+✅ Returns HTTP 200 for empty body (1/1 pts)
+✅ Returns HTTP 200 for non-existent agent (1/1 pts)
 
-### Test with Postman
+📋 Section 3: A2A Response Format
+✅ Response has valid JSON-RPC 2.0 structure (1/1 pts)
+✅ Result contains required A2A task fields (1/1 pts)
+✅ Response includes proper message structure (1/1 pts)
 
-**Endpoint:**
-```
-POST https://purring-orange-gigabyte.mastra.cloud/a2a/agent/healthAgent
-```
-
-**Headers:**
-```
-Content-Type: application/json
-```
-
-**Body:**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "test-123",
-  "method": "message/send",
-  "params": {
-    "message": {
-      "kind": "message",
-      "role": "user",
-      "parts": [
-        {
-          "kind": "text",
-          "text": "What is the life expectancy in Nigeria?"
-        }
-      ],
-      "messageId": "msg-123",
-      "taskId": "task-123"
-    },
-    "configuration": {
-      "blocking": true
-    }
-  }
-}
+==================================================
+Score: 10/10 (100.0%)
+Passed: 10/10
+==================================================
 ```
 
 ### Test with curl
+
 ```bash
-curl -X POST https://purring-orange-gigabyte.mastra.cloud/a2a/agent/healthAgent \
+curl -X POST http://localhost:4111/a2a/agent/healthAgent \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
     "id": "test-123",
-    "method": "message/send",
     "params": {
-      "message": {
-        "kind": "message",
-        "role": "user",
-        "parts": [{"kind": "text", "text": "What is the life expectancy in Nigeria?"}],
-        "messageId": "msg-123",
-        "taskId": "task-123"
-      },
-      "configuration": {"blocking": true}
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the life expectancy in Nigeria?"
+        }
+      ]
     }
   }'
 ```
@@ -204,19 +168,18 @@ curl -X POST https://purring-orange-gigabyte.mastra.cloud/a2a/agent/healthAgent 
 health-stats-agent/
 ├── src/
 │   ├── agents/
-│   │   └── health-agent.ts          # Agent definition & instructions
+│   │   └── health-agent.ts          # Agent configuration and instructions
 │   ├── tools/
-│   │   └── health-tool.ts           # World Bank API integration + cache
+│   │   └── health-tool.ts           # World Bank API integration
 │   ├── services/
-│   │   └── cache-service.ts         # LibSQL cache layer
+│   │   └── cache.service.ts         # LibSQL caching layer
 │   ├── routes/
-│   │   └── a2a-agent-route.ts       # A2A protocol endpoint
+│   │   └── a2a-agent-route.ts       # A2A protocol endpoint handler
 │   ├── utils/
-│   │   └── helper.ts                # Country codes & indicators
+│   │   └── helper.ts                # Country codes & health indicators
 │   └── mastra/
-│       └── index.ts                 # Mastra configuration
-├── test-cache.js                     # Performance test suite
-├── test-local.js                     # Full agent test suite
+│       └── index.ts                 # Mastra initialization
+├── test-a2a.ts                       # A2A compliance test suite
 ├── package.json
 ├── tsconfig.json
 └── .env                              # Environment variables
@@ -224,37 +187,96 @@ health-stats-agent/
 
 ---
 
-## 🔧 Configuration
+## 📡 A2A Protocol
 
-### Supported Countries
+### Request Format
 
-**Africa**: Nigeria, Ghana, Kenya, South Africa, Egypt, Ethiopia, Tanzania, Uganda, Morocco, Algeria
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "unique-request-id",
+  "params": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is the life expectancy in Nigeria?"
+      }
+    ],
+    "taskId": "optional-task-id",
+    "contextId": "optional-context-id"
+  }
+}
+```
 
-**Americas**: USA, Canada, Brazil, Mexico, Argentina, Colombia, Chile
+### Success Response
 
-**Europe**: UK, Germany, France, Italy, Spain, Poland, Netherlands
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "unique-request-id",
+  "result": {
+    "id": "task-id",
+    "contextId": "context-id",
+    "status": {
+      "state": "completed",
+      "timestamp": "2024-01-01T00:00:00.000Z",
+      "message": {
+        "messageId": "msg-id",
+        "role": "agent",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "According to World Bank data from 2022, the life expectancy at birth in Nigeria is 54.7 years..."
+          }
+        ],
+        "kind": "message"
+      }
+    },
+    "artifacts": [...],
+    "history": [...],
+    "kind": "task"
+  }
+}
+```
 
-**Asia**: India, China, Japan, South Korea, Indonesia, Pakistan, Bangladesh, Vietnam, Philippines, Thailand
+### Error Response
 
-**Oceania**: Australia, New Zealand
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "request-id",
+  "error": {
+    "code": -32600,
+    "message": "Invalid Request: JSON-RPC version must be 2.0",
+    "data": {
+      "details": "Additional error information"
+    }
+  }
+}
+```
 
-### Health Indicators
+**Important**: All responses return HTTP 200 status. Errors are communicated through the JSON-RPC error object.
 
-| Indicator | Description | Unit |
-|-----------|-------------|------|
-| `life_expectancy` | Life expectancy at birth | years |
-| `infant_mortality` | Infant mortality rate | per 1,000 live births |
-| `health_expenditure` | Current health expenditure per capita | USD |
-| `immunization` | Immunization coverage (DPT) | % of children |
-| `skilled_births` | Births attended by skilled health staff | % of total births |
-| `hiv_prevalence` | HIV prevalence | % of population ages 15-49 |
+---
 
-### Cache Settings
+## 🗄️ Caching System
 
-- **TTL**: 90 days (health data updates annually)
-- **Cleanup**: Every 6 hours
-- **Storage**: Turso (LibSQL) - persistent across restarts
-- **Fallback**: Automatic fallback to World Bank API if cache fails
+The agent uses an intelligent caching system to optimize performance:
+
+- **Storage**: LibSQL (Turso) - persistent across restarts
+- **TTL**: 90 days (health statistics update annually)
+- **Automatic Cleanup**: Runs every 6 hours
+- **Cache Keys**: Format `health:{COUNTRY_CODE}:{INDICATOR}`
+
+**Example Logs:**
+```
+✅ Cache initialized
+🌐 Cache MISS: health:NGA:life_expectancy
+🌐 Fetching from World Bank API
+✅ Cached: health:NGA:life_expectancy
+
+📦 Cache HIT: health:NGA:life_expectancy
+```
 
 ---
 
@@ -267,91 +289,94 @@ health-stats-agent/
 npx mastra login
 ```
 
-2. **Deploy**
+2. **Deploy the agent**
 ```bash
 npm run deploy
 ```
 
-3. **Get your endpoint**
-Your agent will be deployed to:
+3. **Your endpoint will be available at:**
 ```
-https://[your-deployment].mastra.cloud/a2a/agent/healthAgent
-```
-
-### Environment Variables for Production
-
-Ensure these are set in Mastra Cloud:
-- `DATABASE_URL` - Your Turso database URL
-- `DATABASE_AUTH_TOKEN` - Your Turso auth token
-- `GROQ_API_KEY` - Your Groq API key
-
-
-## 📈 Monitoring
-
-### Check Cache Performance
-
-The logs will show cache hits/misses:
-```
-✅ Cache initialized
-🌐 Cache MISS: health:NGA:life_expectancy
-🌐 Fetching from World Bank API
-✅ Cached: health:NGA:life_expectancy
-
-📦 Cache HIT: health:NGA:life_expectancy
+https://purring-orange-gigabyte.mastra.cloud/a2a/agent/healthAgent
 ```
 
-### Performance Metrics
+### Required Environment Variables
 
-Monitor these in your logs:
-- Cache hit rate (should be 80%+ after initial queries)
-- Response times (cached: ~3s, fresh: ~6s)
-- Tool execution success rate
-- API errors and fallbacks
+Ensure these are configured in your deployment environment:
+- `DATABASE_URL` - Turso database URL
+- `DATABASE_AUTH_TOKEN` - Turso authentication token
+- `GROQ_API_KEY` - Groq API key
+
+---
+
+## 🔧 Configuration
+
+### Adding New Countries
+
+Edit `src/utils/helper.ts`:
+```typescript
+export const COUNTRY_CODES: Record<string, string> = {
+  "your-country": "ISO_CODE",
+  // existing countries...
+}
+```
+
+### Adjusting Cache TTL
+
+Edit `src/services/cache.service.ts`:
+```typescript
+// Change from 90 days to desired duration
+export const CACHE_TTL = 90 * 24 * 60 * 60 * 1000;
+```
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Cache Not Working?
+### Agent Not Responding
 
-**Check database connection:**
+1. **Check if server is running:**
 ```bash
-# Verify Turso credentials
+# Should show the server running on port 4111
+ps aux | grep node
+```
+
+2. **Verify environment variables:**
+```bash
+echo $DATABASE_URL
+echo $GROQ_API_KEY
+```
+
+3. **Check logs for errors:**
+Look for initialization messages and any error logs in the console.
+
+### Database Connection Issues
+
+**Verify Turso credentials:**
+```bash
 turso db show your-database-name
 ```
 
-**Clear cache (if needed):**
-The cache table auto-recreates on restart. To manually clear:
-```sql
-DROP TABLE IF EXISTS health_stats_cache;
+**Test connection:**
+```bash
+turso db shell your-database-name
 ```
 
-### Slow Responses?
+### "Country not recognized" Error
 
-- **First query**: Expected (3-6s) - fetching from World Bank API
-- **Repeated queries**: Should be faster (2-4s) - using cache
-- **Rate limits**: Groq-30 requests/minute
+The requested country may not be in the supported list. Check `src/utils/helper.ts` for available countries.
 
-### Agent Not Responding?
+---
 
-1. Check deployment status in Mastra Cloud
-2. Verify environment variables are set
-3. Test endpoint directly with curl/Postman
-4. Check logs for errors
+## 📝 Scripts
 
-### "Country not recognized" error?
-
-Add the country to `src/utils/helper.ts`:
-```typescript
-export const COUNTRY_CODES: Record<string, string> = {
-  "your-country": "ISO_CODE",
-  // ...
+```json
+{
+  "dev": "mastra dev",           // Start development server
+  "build": "tsc",                // Build TypeScript
+  "deploy": "mastra deploy",     // Deploy to Mastra Cloud
+  "test:a2a": "tsx test-a2a.ts"  // Run A2A compliance tests
 }
 ```
-
-## 📝 License
-
-MIT License - feel free to use this project for learning or production!
 
 ---
 
@@ -359,26 +384,20 @@ MIT License - feel free to use this project for learning or production!
 
 **Abimbola Omisakin**
 
-- Built for HNG Internship Stage 3
-- Integrated with Telex.im using Mastra A2A protocol
-
----
-
-## 🙏 Acknowledgments
-
-- [Mastra](https://mastra.ai) - AI agent framework
-- [World Bank Open Data](https://data.worldbank.org) - Health statistics API
-- [Turso](https://turso.tech) - LibSQL database
-- [Groq](https://console.groq.com) - AI model
-- [Telex.im](https://telex.im) - Communication platform
+Built for HNG Internship Stage 3 - A2A Protocol Implementation
 
 ---
 
 ## 📚 Resources
 
 - [Mastra Documentation](https://docs.mastra.ai)
-- [A2A Protocol Spec](https://github.com/mastra-ai/mastra)
-- [World Bank API Docs](https://datahelpdesk.worldbank.org/knowledgebase/articles/889392)
-- [Telex.im API](https://telex.im/docs)
+- [World Bank API Documentation](https://datahelpdesk.worldbank.org/knowledgebase/articles/889392)
+- [Turso Documentation](https://docs.turso.tech)
+- [Groq API Documentation](https://console.groq.com/docs)
+- [A2A Protocol Specification](https://docs.anthropic.com/en/docs/a2a)
 
 ---
+
+## 📄 License
+
+MIT License - See LICENSE file for details
