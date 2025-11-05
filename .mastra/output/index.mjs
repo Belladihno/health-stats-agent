@@ -354,22 +354,36 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       const mastra = c.get("mastra");
       const agentId = c.req.param("agentId");
       let body = {};
+      let jsonrpc = "2.0";
+      let requestId = randomUUID();
       try {
-        const raw = await c.req.text();
-        body = raw ? JSON.parse(raw) : {};
-      } catch {
+        const parsed = await c.req.json().catch(() => null);
+        if (parsed) {
+          body = parsed;
+        } else {
+          const raw = await c.req.text();
+          if (raw && raw.trim()) {
+            body = JSON.parse(raw);
+          }
+        }
+        jsonrpc = body.jsonrpc ?? "2.0";
+        requestId = body.id ?? randomUUID();
+      } catch (parseError) {
         return c.json(
           {
             jsonrpc: "2.0",
             id: null,
-            error: { code: -32700, message: "Parse error: Invalid JSON" }
+            error: {
+              code: -32700,
+              message: "Parse error: Invalid JSON",
+              data: {
+                details: parseError instanceof Error ? parseError.message : "Could not parse request body"
+              }
+            }
           },
           200
         );
       }
-      const jsonrpc = body.jsonrpc ?? "2.0";
-      const requestId = body.id ?? randomUUID();
-      const params = body.params ?? {};
       if (jsonrpc !== "2.0") {
         return c.json(
           {
@@ -391,17 +405,23 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             id: requestId,
             error: {
               code: -32e3,
-              message: `Agent '${agentId}' not found`
+              message: `Agent '${agentId}' not found`,
+              data: {
+                availableAgents: Object.keys(mastra.getAgents?.() ?? {})
+              }
             }
           },
           200
         );
       }
+      const params = body.params ?? {};
       const messages = params.messages ?? (params.message ? [params.message] : []);
-      messages.filter((m) => m?.role === "user" && m?.content).map((m) => m.content).join("\n") || "Hello";
+      const userMessage = messages.filter((m) => m?.role === "user" && m?.content).map((m) => m.content).join("\n") || "Hello";
       let agentText = "No response generated";
       try {
-        const response = await agent.generate(messages);
+        const response = await agent.generate(
+          messages.length > 0 ? messages : [{ role: "user", content: userMessage }]
+        );
         agentText = response?.text ?? (typeof response === "string" ? response : agentText);
       } catch (genErr) {
         return c.json(
@@ -419,6 +439,7 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       }
       const taskId = params.taskId ?? randomUUID();
       const contextId = params.contextId ?? randomUUID();
+      const messageId = randomUUID();
       const result = {
         id: taskId,
         contextId,
@@ -426,7 +447,7 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
           state: "completed",
           timestamp: (/* @__PURE__ */ new Date()).toISOString(),
           message: {
-            messageId: randomUUID(),
+            messageId,
             role: "agent",
             parts: [{ kind: "text", text: agentText }],
             kind: "message"
@@ -451,7 +472,7 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             kind: "message",
             role: "agent",
             parts: [{ kind: "text", text: agentText }],
-            messageId: randomUUID(),
+            messageId,
             taskId
           }
         ],
@@ -472,7 +493,9 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             id: requestId,
             result
           })
-        }).catch(console.error);
+        }).catch((err) => {
+          console.error("Push notification failed:", err);
+        });
       }
       return c.json(
         {
@@ -483,6 +506,7 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
         200
       );
     } catch (err) {
+      console.error("Unhandled error in A2A route:", err);
       return c.json(
         {
           jsonrpc: "2.0",
@@ -490,7 +514,10 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
           error: {
             code: -32603,
             message: "Internal error",
-            data: { details: err?.message ?? String(err) }
+            data: {
+              details: err?.message ?? String(err),
+              stack: err?.stack 
+            }
           }
         },
         200

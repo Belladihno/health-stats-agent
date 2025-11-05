@@ -316,69 +316,179 @@ Always use the healthStatsTool to fetch actual data - never make up statistics.
 const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
   method: "POST",
   handler: async (c) => {
-    const mastra = c.get("mastra");
-    const agentId = c.req.param("agentId");
-    let body;
     try {
-      const text = await c.req.text();
-      body = JSON.parse(text);
-    } catch {
-      return c.json({
-        jsonrpc: "2.0",
-        id: null,
-        error: { code: -32700, message: "Parse error" }
-      });
-    }
-    const { jsonrpc, id, method, params } = body || {};
-    if (jsonrpc !== "2.0" || !method) {
-      return c.json({
-        jsonrpc: "2.0",
-        id: id ?? null,
-        error: { code: -32600, message: "Invalid Request" }
-      });
-    }
-    const agent = mastra.getAgent(agentId);
-    if (!agent) {
-      return c.json({
-        jsonrpc: "2.0",
-        id,
-        error: { code: -32601, message: `Agent '${agentId}' not found` }
-      });
-    }
-    const message = params?.message || params?.input || { parts: [{ kind: "text", text: "" }] };
-    const parts = Array.isArray(message.parts) ? message.parts : [];
-    const userText = parts.filter((p) => p?.kind === "text" && p?.text).map((p) => p.text).join("\n");
-    const textToSend = userText.trim() || "I received an empty message. Please ask me something.";
-    const messages = [{ role: "user", content: textToSend }];
-    let responseText = "";
-    try {
-      const result2 = await agent.generate(messages);
-      responseText = result2?.text || "No response generated.";
-    } catch (err) {
-      responseText = `Error: ${err.message}`;
-    }
-    const result = {
-      id: params?.taskId || randomUUID(),
-      contextId: params?.contextId || randomUUID(),
-      status: {
-        state: "completed",
-        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-        message: {
-          messageId: randomUUID(),
-          role: "agent",
-          parts: [{ kind: "text", text: responseText }],
-          kind: "message"
+      const mastra = c.get("mastra");
+      const agentId = c.req.param("agentId");
+      let body = {};
+      let jsonrpc = "2.0";
+      let requestId = randomUUID();
+      try {
+        const parsed = await c.req.json().catch(() => null);
+        if (parsed) {
+          body = parsed;
+        } else {
+          const raw = await c.req.text();
+          if (raw && raw.trim()) {
+            body = JSON.parse(raw);
+          }
         }
-      },
-      artifacts: [],
-      history: [],
-      kind: "task"
-    };
-    return c.json({
-      jsonrpc: "2.0",
-      id: id ?? randomUUID(),
-      result
-    });
+        jsonrpc = body.jsonrpc ?? "2.0";
+        requestId = body.id ?? randomUUID();
+      } catch (parseError) {
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: null,
+            error: {
+              code: -32700,
+              message: "Parse error: Invalid JSON",
+              data: {
+                details: parseError instanceof Error ? parseError.message : "Could not parse request body"
+              }
+            }
+          },
+          200
+        );
+      }
+      if (jsonrpc !== "2.0") {
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: requestId,
+            error: {
+              code: -32600,
+              message: "Invalid Request: JSON-RPC version must be 2.0"
+            }
+          },
+          200
+        );
+      }
+      const agent = mastra.getAgent(agentId);
+      if (!agent) {
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: requestId,
+            error: {
+              code: -32e3,
+              message: `Agent '${agentId}' not found`,
+              data: {
+                availableAgents: Object.keys(mastra.getAgents?.() ?? {})
+              }
+            }
+          },
+          200
+        );
+      }
+      const params = body.params ?? {};
+      const messages = params.messages ?? (params.message ? [params.message] : []);
+      const userMessage = messages.filter((m) => m?.role === "user" && m?.content).map((m) => m.content).join("\n") || "Hello";
+      let agentText = "No response generated";
+      try {
+        const response = await agent.generate(
+          messages.length > 0 ? messages : [{ role: "user", content: userMessage }]
+        );
+        agentText = response?.text ?? (typeof response === "string" ? response : agentText);
+      } catch (genErr) {
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: requestId,
+            error: {
+              code: -32001,
+              message: "Agent generation error",
+              data: { details: genErr?.message ?? String(genErr) }
+            }
+          },
+          200
+        );
+      }
+      const taskId = params.taskId ?? randomUUID();
+      const contextId = params.contextId ?? randomUUID();
+      const messageId = randomUUID();
+      const result = {
+        id: taskId,
+        contextId,
+        status: {
+          state: "completed",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          message: {
+            messageId,
+            role: "agent",
+            parts: [{ kind: "text", text: agentText }],
+            kind: "message"
+          }
+        },
+        artifacts: [
+          {
+            artifactId: randomUUID(),
+            name: `${agentId}Response`,
+            parts: [{ kind: "text", text: agentText }]
+          }
+        ],
+        history: [
+          ...messages.map((m) => ({
+            kind: "message",
+            role: m.role ?? "user",
+            parts: [{ kind: "text", text: m.content ?? "" }],
+            messageId: m.messageId ?? randomUUID(),
+            taskId
+          })),
+          {
+            kind: "message",
+            role: "agent",
+            parts: [{ kind: "text", text: agentText }],
+            messageId,
+            taskId
+          }
+        ],
+        kind: "task"
+      };
+      const config = params.configuration ?? {};
+      if (config.blocking === false && config.pushNotificationConfig?.url) {
+        fetch(config.pushNotificationConfig.url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...config.pushNotificationConfig.token && {
+              Authorization: `Bearer ${config.pushNotificationConfig.token}`
+            }
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: requestId,
+            result
+          })
+        }).catch((err) => {
+          console.error("Push notification failed:", err);
+        });
+      }
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          id: requestId,
+          result
+        },
+        200
+      );
+    } catch (err) {
+      console.error("Unhandled error in A2A route:", err);
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32603,
+            message: "Internal error",
+            data: {
+              details: err?.message ?? String(err),
+              stack: process.env.NODE_ENV === "development" ? err?.stack : void 0
+            }
+          }
+        },
+        200
+      );
+    }
   }
 });
 
