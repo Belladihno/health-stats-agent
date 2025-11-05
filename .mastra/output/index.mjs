@@ -477,13 +477,6 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             kind: "message"
           }
         },
-        artifacts: [
-          {
-            artifactId: randomUUID(),
-            name: `${agentId}Response`,
-            parts: [{ kind: "text", text: agentText }]
-          }
-        ],
         history: [
           ...messages.map((m) => ({
             kind: "message",
