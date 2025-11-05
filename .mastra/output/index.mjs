@@ -467,6 +467,7 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
       const result = {
         id: taskId,
         contextId,
+        message: agentText,
         status: {
           state: "completed",
           timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -477,6 +478,8 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             kind: "message"
           }
         },
+        artifacts: [],
+        // empty to avoid duplication
         history: [
           ...messages.map((m) => ({
             kind: "message",
