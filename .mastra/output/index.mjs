@@ -415,15 +415,36 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
         );
       }
       const params = body.params ?? {};
-      const messages = params.messages ?? (params.message ? [params.message] : []);
-      const userMessage = messages.filter((m) => m?.role === "user" && m?.content).map((m) => m.content).join("\n") || "Hello";
+      let messages = params.messages ?? (params.message ? [params.message] : []);
+      messages = messages.map((m) => {
+        if (m.parts && !m.role) {
+          const text = m.parts.filter((p) => p.kind === "text").map((p) => p.text).join("\n");
+          return { role: "user", content: text };
+        }
+        if (m.role && m.content) {
+          return m;
+        }
+        return { role: "user", content: String(m.content || m.text || "") };
+      });
+      if (messages.length === 0 || !messages[0].content) {
+        messages = [{ role: "user", content: "Hello" }];
+      }
       let agentText = "No response generated";
       try {
-        const response = await agent.generate(
-          messages.length > 0 ? messages : [{ role: "user", content: userMessage }]
-        );
-        agentText = response?.text ?? (typeof response === "string" ? response : agentText);
+        console.log("Calling agent.generate with messages:", JSON.stringify(messages));
+        const response = await agent.generate(messages);
+        console.log("Agent response:", JSON.stringify(response));
+        if (typeof response === "string") {
+          agentText = response;
+        } else if (response && typeof response === "object") {
+          agentText = response.text || response.content || response.message || response.choices?.[0]?.message?.content || "No text content in response";
+        }
+        if (!agentText || agentText === "No response generated" || agentText === "No text content in response") {
+          console.error("Failed to extract text from agent response:", response);
+          throw new Error("Agent did not return valid text content");
+        }
       } catch (genErr) {
+        console.error("Agent generation error:", genErr);
         return c.json(
           {
             jsonrpc: "2.0",
@@ -431,7 +452,10 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             error: {
               code: -32001,
               message: "Agent generation error",
-              data: { details: genErr?.message ?? String(genErr) }
+              data: {
+                details: genErr?.message ?? String(genErr),
+                stack: genErr?.stack 
+              }
             }
           },
           200

@@ -4,23 +4,19 @@ import { randomUUID } from "crypto";
 export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
   method: "POST",
   handler: async (c) => {
-    // CRITICAL: Wrap everything in try-catch to prevent framework-level 400 errors
     try {
       const mastra = c.get("mastra");
       const agentId = c.req.param("agentId");
 
-      // Parse body with multiple fallback strategies
       let body: any = {};
       let jsonrpc = "2.0";
       let requestId = randomUUID();
 
       try {
-        // Strategy 1: Try to get pre-parsed body (if middleware already parsed it)
         const parsed = await c.req.json().catch(() => null);
         if (parsed) {
           body = parsed;
         } else {
-          // Strategy 2: Parse raw text manually
           const raw = await c.req.text();
           if (raw && raw.trim()) {
             body = JSON.parse(raw);
@@ -86,29 +82,52 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
 
       // Extract messages from params
       const params = body.params ?? {};
-      const messages =
-        params.messages ?? (params.message ? [params.message] : []);
+      let messages = params.messages ?? (params.message ? [params.message] : []);
 
-      // Ensure we have at least one message
-      const userMessage =
-        messages
-          .filter((m: any) => m?.role === "user" && m?.content)
-          .map((m: any) => m.content)
-          .join("\n") || "Hello";
+      messages = messages.map((m: any) => {
+        if (m.parts && !m.role) {
+          const text = m.parts
+            .filter((p: any) => p.kind === "text")
+            .map((p: any) => p.text)
+            .join("\n");
+          return { role: "user", content: text };
+        }
+        if (m.role && m.content) {
+          return m;
+        }
+        return { role: "user", content: String(m.content || m.text || "") };
+      });
+
+      if (messages.length === 0 || !messages[0].content) {
+        messages = [{ role: "user", content: "Hello" }];
+      }
 
       // Generate agent response
       let agentText = "No response generated";
       try {
-        const response = await agent.generate(
-          messages.length > 0
-            ? messages
-            : [{ role: "user", content: userMessage }]
-        );
+        console.log("Calling agent.generate with messages:", JSON.stringify(messages));
+        
+        const response = await agent.generate(messages);
 
-        agentText =
-          response?.text ??
-          (typeof response === "string" ? response : agentText);
+        console.log("Agent response:", JSON.stringify(response));
+
+        if (typeof response === "string") {
+          agentText = response;
+        } else if (response && typeof response === "object") {
+          agentText =
+            (response as any).text ||
+            (response as any).content ||
+            (response as any).message ||
+            (response as any).choices?.[0]?.message?.content ||
+            "No text content in response";
+        }
+
+        if (!agentText || agentText === "No response generated" || agentText === "No text content in response") {
+          console.error("Failed to extract text from agent response:", response);
+          throw new Error("Agent did not return valid text content");
+        }
       } catch (genErr: any) {
+        console.error("Agent generation error:", genErr);
         return c.json(
           {
             jsonrpc: "2.0",
@@ -116,7 +135,10 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
             error: {
               code: -32001,
               message: "Agent generation error",
-              data: { details: genErr?.message ?? String(genErr) },
+              data: { 
+                details: genErr?.message ?? String(genErr),
+                stack: process.env.NODE_ENV === "development" ? genErr?.stack : undefined
+              },
             },
           },
           200
@@ -167,10 +189,8 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
         kind: "task",
       };
 
-      // Handle async push notifications if configured
       const config = params.configuration ?? {};
       if (config.blocking === false && config.pushNotificationConfig?.url) {
-        // Fire and forget - don't wait for this
         fetch(config.pushNotificationConfig.url, {
           method: "POST",
           headers: {
@@ -199,8 +219,6 @@ export const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
         200
       );
     } catch (err: any) {
-      // CRITICAL: Catch-all for any unhandled errors
-      // This ensures we ALWAYS return HTTP 200 with JSON-RPC error format
       console.error("Unhandled error in A2A route:", err);
 
       return c.json(
