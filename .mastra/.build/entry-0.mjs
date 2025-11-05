@@ -316,198 +316,69 @@ Always use the healthStatsTool to fetch actual data - never make up statistics.
 const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
   method: "POST",
   handler: async (c) => {
+    const mastra = c.get("mastra");
+    const agentId = c.req.param("agentId");
+    let body;
     try {
-      const mastra = c.get("mastra");
-      const agentId = c.req.param("agentId");
-      let body;
-      try {
-        body = await c.req.json();
-      } catch (error) {
-        console.error("Invalid JSON body:", error);
-        return c.json(
-          {
-            jsonrpc: "2.0",
-            id: null,
-            error: {
-              code: -32700,
-              message: "Parse error: Invalid JSON"
-            }
-          },
-          400
-        );
-      }
-      const { jsonrpc, id: requestId, params } = body;
-      if (jsonrpc !== "2.0") {
-        console.error("Invalid JSON-RPC version:", jsonrpc);
-        return c.json(
-          {
-            jsonrpc: "2.0",
-            id: requestId || null,
-            error: {
-              code: -32600,
-              message: "Invalid Request: JSON-RPC version must be 2.0"
-            }
-          },
-          400
-        );
-      }
-      const agent = mastra.getAgent(agentId);
-      if (!agent) {
-        console.error(`Agent not found: ${agentId}`);
-        console.log(
-          "Available agents:",
-          Object.keys(mastra.getAgents?.() ?? {})
-        );
-        return c.json(
-          {
-            jsonrpc: "2.0",
-            id: requestId || null,
-            error: {
-              code: -32602,
-              message: `Agent '${agentId}' not found. Available agents: ${Object.keys(mastra.getAgents?.() ?? {}).join(", ")}`
-            }
-          },
-          404
-        );
-      }
-      const message = params?.message || { parts: [] };
-      const configuration = params?.configuration || {};
-      const isBlocking = configuration.blocking !== false;
-      const userMessage = Array.isArray(message.parts) ? message.parts.filter((part) => part?.kind === "text" && part?.text).map((part) => part.text).join("\n") : "";
-      if (!userMessage.trim()) {
-        console.warn("Empty message received");
-        return c.json({
-          jsonrpc: "2.0",
-          id: requestId || randomUUID(),
-          result: {
-            id: params?.taskId || randomUUID(),
-            contextId: params?.contextId || randomUUID(),
-            status: {
-              state: "completed",
-              timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-              message: {
-                messageId: randomUUID(),
-                role: "agent",
-                parts: [
-                  {
-                    kind: "text",
-                    text: "I received an empty message. Please ask me a question about health statistics!"
-                  }
-                ],
-                kind: "message"
-              }
-            },
-            artifacts: [],
-            history: [],
-            kind: "task"
-          }
-        });
-      }
-      console.log(
-        `Processing message for agent ${agentId}:`,
-        userMessage.substring(0, 100)
-      );
-      const mastraMessages = [
-        {
-          role: "user",
-          content: userMessage
-        }
-      ];
-      const timeoutPromise = new Promise(
-        (_, reject) => setTimeout(() => reject(new Error("Agent execution timeout")), 3e4)
-      );
-      const agentPromise = agent.generate(mastraMessages);
-      const response = await Promise.race([
-        agentPromise,
-        timeoutPromise
-      ]);
-      const agentText = response?.text || "I couldn't generate a response. Please try again.";
-      console.log(
-        `Agent response (${agentText.length} chars):`,
-        agentText.substring(0, 100)
-      );
-      const taskId = params?.taskId || randomUUID();
-      const contextId = params?.contextId || randomUUID();
-      const responseMessageId = randomUUID();
-      const result = {
-        id: taskId,
-        contextId,
-        status: {
-          state: "completed",
-          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-          message: {
-            messageId: responseMessageId,
-            role: "agent",
-            parts: [{ kind: "text", text: agentText }],
-            kind: "message"
-          }
-        },
-        artifacts: [
-          {
-            artifactId: randomUUID(),
-            name: `${agentId}Response`,
-            parts: [{ kind: "text", text: agentText }]
-          }
-        ],
-        history: [
-          {
-            kind: "message",
-            role: message.role || "user",
-            parts: message.parts || [],
-            messageId: message.messageId || randomUUID(),
-            taskId
-          },
-          {
-            kind: "message",
-            role: "agent",
-            parts: [{ kind: "text", text: agentText }],
-            messageId: responseMessageId,
-            taskId
-          }
-        ],
-        kind: "task"
-      };
-      if (!isBlocking && configuration?.pushNotificationConfig?.url) {
-        const webhookUrl = configuration.pushNotificationConfig.url;
-        const webhookToken = configuration.pushNotificationConfig.token;
-        fetch(webhookUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...webhookToken && { Authorization: `Bearer ${webhookToken}` }
-          },
-          body: JSON.stringify({
-            jsonrpc: "2.0",
-            id: requestId || randomUUID(),
-            result
-          })
-        }).catch((error) => {
-          console.error("Webhook delivery failed:", error);
-        });
-      }
+      const text = await c.req.text();
+      body = JSON.parse(text);
+    } catch {
       return c.json({
         jsonrpc: "2.0",
-        id: requestId || randomUUID(),
-        result
+        id: null,
+        error: { code: -32700, message: "Parse error" }
       });
-    } catch (error) {
-      console.error("Error processing A2A request:", error);
-      return c.json(
-        {
-          jsonrpc: "2.0",
-          id: null,
-          error: {
-            code: -32603,
-            message: "Internal error",
-            data: {
-              details: error?.message || "Unknown error",
-              stack: process.env.NODE_ENV === "development" ? error?.stack : void 0
-            }
-          }
-        },
-        500
-      );
     }
+    const { jsonrpc, id, method, params } = body || {};
+    if (jsonrpc !== "2.0" || !method) {
+      return c.json({
+        jsonrpc: "2.0",
+        id: id ?? null,
+        error: { code: -32600, message: "Invalid Request" }
+      });
+    }
+    const agent = mastra.getAgent(agentId);
+    if (!agent) {
+      return c.json({
+        jsonrpc: "2.0",
+        id,
+        error: { code: -32601, message: `Agent '${agentId}' not found` }
+      });
+    }
+    const message = params?.message || params?.input || { parts: [{ kind: "text", text: "" }] };
+    const parts = Array.isArray(message.parts) ? message.parts : [];
+    const userText = parts.filter((p) => p?.kind === "text" && p?.text).map((p) => p.text).join("\n");
+    const textToSend = userText.trim() || "I received an empty message. Please ask me something.";
+    const messages = [{ role: "user", content: textToSend }];
+    let responseText = "";
+    try {
+      const result2 = await agent.generate(messages);
+      responseText = result2?.text || "No response generated.";
+    } catch (err) {
+      responseText = `Error: ${err.message}`;
+    }
+    const result = {
+      id: params?.taskId || randomUUID(),
+      contextId: params?.contextId || randomUUID(),
+      status: {
+        state: "completed",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        message: {
+          messageId: randomUUID(),
+          role: "agent",
+          parts: [{ kind: "text", text: responseText }],
+          kind: "message"
+        }
+      },
+      artifacts: [],
+      history: [],
+      kind: "task"
+    };
+    return c.json({
+      jsonrpc: "2.0",
+      id: id ?? randomUUID(),
+      result
+    });
   }
 });
 

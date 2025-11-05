@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>A2A Endpoint Tester</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+      .header h1 {
+        font-size: 2em;
+        margin-bottom: 10px;
+      }
+      .header p {
+        opacity: 0.9;
+      }
+      .content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        padding: 30px;
+      }
+      .panel {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+      }
+      .panel h2 {
+        color: #667eea;
+        margin-bottom: 15px;
+        font-size: 1.3em;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        color: #555;
+        font-weight: 600;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 10px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.3s;
+      }
+      input:focus,
+      select:focus,
+      textarea:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+      textarea {
+        font-family: "Courier New", monospace;
+        min-height: 120px;
+        resize: vertical;
+      }
+      button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          transform 0.2s,
+          box-shadow 0.2s;
+        width: 100%;
+      }
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+      }
+      button:active {
+        transform: translateY(0);
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .response-panel {
+        grid-column: 1 / -1;
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-top: 10px;
+      }
+      .response-content {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 20px;
+        border-radius: 6px;
+        font-family: "Courier New", monospace;
+        font-size: 13px;
+        max-height: 400px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .status {
+        display: inline-block;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+      }
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .status.loading {
+        background: #fff3cd;
+        color: #856404;
+      }
+      .quick-tests {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        margin-top: 15px;
+      }
+      .quick-test-btn {
+        padding: 8px 15px;
+        font-size: 14px;
+        background: #6c757d;
+      }
+      .quick-test-btn:hover {
+        background: #5a6268;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🧪 A2A Endpoint Tester</h1>
+        <p>Test your health statistics agent locally before deployment</p>
+      </div>
+
+      <div class="content">
+        <div class="panel">
+          <h2>Configuration</h2>
+          <div class="form-group">
+            <label for="endpoint">Endpoint URL</label>
+            <input
+              type="text"
+              id="endpoint"
+              value="https://purring-orange-gigabyte-6ccf0b23-0f85-415c-9b1b-5a9ce070f49c.mastra.cloud/a2a/agent/healthAgent"
+            />
+          </div>
+          <div class="form-group">
+            <label for="agentId">Agent ID</label>
+            <input type="text" id="agentId" value="healthAgent" />
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Test Message</h2>
+          <div class="form-group">
+            <label for="message">User Message</label>
+            <textarea
+              id="message"
+              placeholder="What is the life expectancy in Nigeria?"
+            >
+What is the life expectancy in Nigeria?</textarea
+            >
+          </div>
+        </div>
+
+        <div class="panel" style="grid-column: 1 / -1">
+          <h2>Quick Tests</h2>
+          <div class="quick-tests">
+            <button
+              class="quick-test-btn"
+              onclick="quickTest('What is the life expectancy in Nigeria?')"
+            >
+              Life Expectancy
+            </button>
+            <button
+              class="quick-test-btn"
+              onclick="quickTest('Tell me about infant mortality in Kenya')"
+            >
+              Infant Mortality
+            </button>
+            <button
+              class="quick-test-btn"
+              onclick="quickTest('Compare health expenditure between USA and Japan')"
+            >
+              Compare Countries
+            </button>
+            <button
+              class="quick-test-btn"
+              onclick="quickTest('What health stats do you have for Brazil?')"
+            >
+              General Query
+            </button>
+            <button class="quick-test-btn" onclick="quickTest('')">
+              Empty Message
+            </button>
+            <button class="quick-test-btn" onclick="testMinimalRequest()">
+              Minimal Request
+            </button>
+          </div>
+        </div>
+
+        <div class="panel" style="grid-column: 1 / -1">
+          <button id="testBtn" onclick="sendRequest()">
+            🚀 Send Test Request
+          </button>
+        </div>
+
+        <div class="response-panel">
+          <h2>Response</h2>
+          <div id="statusContainer"></div>
+          <div class="response-content" id="response">
+            Waiting for request...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      async function sendRequest(customPayload = null) {
+        const endpoint = document.getElementById("endpoint").value;
+        const message = document.getElementById("message").value;
+        const responseEl = document.getElementById("response");
+        const statusEl = document.getElementById("statusContainer");
+        const testBtn = document.getElementById("testBtn");
+
+        testBtn.disabled = true;
+        statusEl.innerHTML =
+          '<span class="status loading">⏳ Sending request...</span>';
+        responseEl.textContent = "Waiting for response...";
+
+        const payload = customPayload || {
+          jsonrpc: "2.0",
+          id: "test-" + Date.now(),
+          method: "agent.execute",
+          params: {
+            taskId: "task-" + Date.now(),
+            contextId: "ctx-" + Date.now(),
+            message: {
+              role: "user",
+              messageId: "msg-" + Date.now(),
+              parts: [
+                {
+                  kind: "text",
+                  text: message,
+                },
+              ],
+            },
+            configuration: {
+              blocking: true,
+            },
+          },
+        };
+
+        try {
+          const startTime = Date.now();
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const duration = Date.now() - startTime;
+          const data = await response.json();
+
+          const statusClass = response.ok ? "success" : "error";
+          statusEl.innerHTML = `
+          <span class="status ${statusClass}">
+            ${response.ok ? "✅" : "❌"} Status: ${response.status} | Duration: ${duration}ms
+          </span>
+        `;
+
+          responseEl.textContent = JSON.stringify(data, null, 2);
+
+          // Show agent response if available
+          if (data.result?.status?.message?.parts?.[0]?.text) {
+            const agentText = data.result.status.message.parts[0].text;
+            console.log("Agent says:", agentText);
+          }
+        } catch (error) {
+          statusEl.innerHTML =
+            '<span class="status error">❌ Request Failed</span>';
+          responseEl.textContent = `Error: ${error.message}\n\nMake sure your server is running at ${endpoint}`;
+        } finally {
+          testBtn.disabled = false;
+        }
+      }
+
+      function quickTest(message) {
+        document.getElementById("message").value = message;
+        sendRequest();
+      }
+
+      function testMinimalRequest() {
+        const endpoint = document.getElementById("endpoint").value;
+        const payload = {
+          jsonrpc: "2.0",
+          params: {
+            message: {
+              parts: [
+                {
+                  kind: "text",
+                  text: "What is the life expectancy in Nigeria?",
+                },
+              ],
+            },
+          },
+        };
+        sendRequest(payload);
+      }
+
+      // Allow Enter key in textarea
+      document.getElementById("message").addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && e.ctrlKey) {
+          sendRequest();
+        }
+      });
+    </script>
+  </body>
+</html>

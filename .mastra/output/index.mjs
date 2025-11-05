@@ -353,116 +353,72 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
     try {
       const mastra = c.get("mastra");
       const agentId = c.req.param("agentId");
-      let body;
+      let body = {};
       try {
-        body = await c.req.json();
-      } catch (error) {
-        console.error("Invalid JSON body:", error);
+        const raw = await c.req.text();
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
         return c.json(
           {
             jsonrpc: "2.0",
             id: null,
-            error: {
-              code: -32700,
-              message: "Parse error: Invalid JSON"
-            }
+            error: { code: -32700, message: "Parse error: Invalid JSON" }
           },
-          400
+          200
         );
       }
-      const { jsonrpc, id: requestId, params } = body;
+      const jsonrpc = body.jsonrpc ?? "2.0";
+      const requestId = body.id ?? randomUUID();
+      const params = body.params ?? {};
       if (jsonrpc !== "2.0") {
-        console.error("Invalid JSON-RPC version:", jsonrpc);
         return c.json(
           {
             jsonrpc: "2.0",
-            id: requestId || null,
+            id: requestId,
             error: {
               code: -32600,
               message: "Invalid Request: JSON-RPC version must be 2.0"
             }
           },
-          400
+          200
         );
       }
       const agent = mastra.getAgent(agentId);
       if (!agent) {
-        console.error(`Agent not found: ${agentId}`);
-        console.log(
-          "Available agents:",
-          Object.keys(mastra.getAgents?.() ?? {})
-        );
         return c.json(
           {
             jsonrpc: "2.0",
-            id: requestId || null,
+            id: requestId,
             error: {
-              code: -32602,
-              message: `Agent '${agentId}' not found. Available agents: ${Object.keys(mastra.getAgents?.() ?? {}).join(", ")}`
+              code: -32e3,
+              message: `Agent '${agentId}' not found`
             }
           },
-          404
+          200
         );
       }
-      const message = params?.message || { parts: [] };
-      const configuration = params?.configuration || {};
-      const isBlocking = configuration.blocking !== false;
-      const userMessage = Array.isArray(message.parts) ? message.parts.filter((part) => part?.kind === "text" && part?.text).map((part) => part.text).join("\n") : "";
-      if (!userMessage.trim()) {
-        console.warn("Empty message received");
-        return c.json({
-          jsonrpc: "2.0",
-          id: requestId || randomUUID(),
-          result: {
-            id: params?.taskId || randomUUID(),
-            contextId: params?.contextId || randomUUID(),
-            status: {
-              state: "completed",
-              timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-              message: {
-                messageId: randomUUID(),
-                role: "agent",
-                parts: [
-                  {
-                    kind: "text",
-                    text: "I received an empty message. Please ask me a question about health statistics!"
-                  }
-                ],
-                kind: "message"
-              }
-            },
-            artifacts: [],
-            history: [],
-            kind: "task"
-          }
-        });
+      const messages = params.messages ?? (params.message ? [params.message] : []);
+      messages.filter((m) => m?.role === "user" && m?.content).map((m) => m.content).join("\n") || "Hello";
+      let agentText = "No response generated";
+      try {
+        const response = await agent.generate(messages);
+        agentText = response?.text ?? (typeof response === "string" ? response : agentText);
+      } catch (genErr) {
+        return c.json(
+          {
+            jsonrpc: "2.0",
+            id: requestId,
+            error: {
+              code: -32001,
+              message: "Agent generation error",
+              data: { details: genErr?.message ?? String(genErr) }
+            }
+          },
+          200
+        );
       }
-      console.log(
-        `Processing message for agent ${agentId}:`,
-        userMessage.substring(0, 100)
-      );
-      const mastraMessages = [
-        {
-          role: "user",
-          content: userMessage
-        }
-      ];
-      const timeoutPromise = new Promise(
-        (_, reject) => setTimeout(() => reject(new Error("Agent execution timeout")), 3e4)
-      );
-      const agentPromise = agent.generate(mastraMessages);
-      const response = await Promise.race([
-        agentPromise,
-        timeoutPromise
-      ]);
-      const agentText = response?.text || "I couldn't generate a response. Please try again.";
-      console.log(
-        `Agent response (${agentText.length} chars):`,
-        agentText.substring(0, 100)
-      );
-      const taskId = params?.taskId || randomUUID();
-      const contextId = params?.contextId || randomUUID();
-      const responseMessageId = randomUUID();
+      const taskId = params.taskId ?? randomUUID();
+      const contextId = params.contextId ?? randomUUID();
       const result = {
         id: taskId,
         contextId,
@@ -470,7 +426,7 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
           state: "completed",
           timestamp: (/* @__PURE__ */ new Date()).toISOString(),
           message: {
-            messageId: responseMessageId,
+            messageId: randomUUID(),
             role: "agent",
             parts: [{ kind: "text", text: agentText }],
             kind: "message"
@@ -484,48 +440,49 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
           }
         ],
         history: [
-          {
+          ...messages.map((m) => ({
             kind: "message",
-            role: message.role || "user",
-            parts: message.parts || [],
-            messageId: message.messageId || randomUUID(),
+            role: m.role ?? "user",
+            parts: [{ kind: "text", text: m.content ?? "" }],
+            messageId: m.messageId ?? randomUUID(),
             taskId
-          },
+          })),
           {
             kind: "message",
             role: "agent",
             parts: [{ kind: "text", text: agentText }],
-            messageId: responseMessageId,
+            messageId: randomUUID(),
             taskId
           }
         ],
         kind: "task"
       };
-      if (!isBlocking && configuration?.pushNotificationConfig?.url) {
-        const webhookUrl = configuration.pushNotificationConfig.url;
-        const webhookToken = configuration.pushNotificationConfig.token;
-        fetch(webhookUrl, {
+      const config = params.configuration ?? {};
+      if (config.blocking === false && config.pushNotificationConfig?.url) {
+        fetch(config.pushNotificationConfig.url, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...webhookToken && { Authorization: `Bearer ${webhookToken}` }
+            ...config.pushNotificationConfig.token && {
+              Authorization: `Bearer ${config.pushNotificationConfig.token}`
+            }
           },
           body: JSON.stringify({
             jsonrpc: "2.0",
-            id: requestId || randomUUID(),
+            id: requestId,
             result
           })
-        }).catch((error) => {
-          console.error("Webhook delivery failed:", error);
-        });
+        }).catch(console.error);
       }
-      return c.json({
-        jsonrpc: "2.0",
-        id: requestId || randomUUID(),
-        result
-      });
-    } catch (error) {
-      console.error("Error processing A2A request:", error);
+      return c.json(
+        {
+          jsonrpc: "2.0",
+          id: requestId,
+          result
+        },
+        200
+      );
+    } catch (err) {
       return c.json(
         {
           jsonrpc: "2.0",
@@ -533,13 +490,10 @@ const a2aAgentRoute = registerApiRoute("/a2a/agent/:agentId", {
           error: {
             code: -32603,
             message: "Internal error",
-            data: {
-              details: error?.message || "Unknown error",
-              stack: error?.stack 
-            }
+            data: { details: err?.message ?? String(err) }
           }
         },
-        500
+        200
       );
     }
   }

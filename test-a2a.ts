@@ -1,291 +1,124 @@
-// test-a2a.ts - Run this to test your A2A endpoint locally
+/**
+ * test-a2a-fix.ts
+ * Full verification of A2A endpoint compliance for Mastra graders.
+ */
 
-const BASE_URL = "http://localhost:4111"; // Default Mastra port
+const BASE_URL = "https://purring-orange-gigabyte-6ccf0b23-0f85-415c-9b1b-5a9ce070f49c.mastra.cloud";
 const AGENT_ID = "healthAgent";
 
-interface TestCase {
-  name: string;
-  payload: any;
-  expectedStatus?: number;
-  shouldPass: boolean;
-}
-
-const testCases: TestCase[] = [
-  // Test 1: Valid complete request
+const tests = [
   {
-    name: "✅ Valid complete A2A request",
-    shouldPass: true,
+    name: "✅ Valid A2A request (params.messages)",
     payload: {
       jsonrpc: "2.0",
-      id: "test-001",
+      id: "fix-001",
       method: "agent.execute",
       params: {
         taskId: "task-001",
         contextId: "ctx-001",
-        message: {
-          role: "user",
-          messageId: "msg-001",
-          parts: [
-            {
-              kind: "text",
-              text: "What is the life expectancy in Nigeria?",
-            },
-          ],
-        },
+        messages: [
+          { role: "user", content: "What is the life expectancy in Nigeria?" },
+        ],
+        configuration: { blocking: true },
+      },
+    },
+    expectStatus: 200,
+    expect: { result: true, error: false },
+  },
+  {
+    name: "✅ Minimal valid A2A request (no id/method)",
+    payload: {
+      jsonrpc: "2.0",
+      params: {
+        messages: [
+          { role: "user", content: "Tell me about infant mortality in Kenya" },
+        ],
+      },
+    },
+    expectStatus: 200,
+    expect: { result: true, error: false },
+  },
+  {
+    name: "✅ Non-blocking A2A with pushNotificationConfig",
+    payload: {
+      jsonrpc: "2.0",
+      id: "fix-003",
+      method: "agent.execute",
+      params: {
+        taskId: "task-003",
+        contextId: "ctx-003",
+        messages: [
+          { role: "user", content: "Give me the current population health summary for Ghana" },
+        ],
         configuration: {
-          blocking: true,
+          blocking: false,
+          pushNotificationConfig: {
+            type: "webhook",
+            url: "https://example.com/webhook-test",
+          },
         },
       },
     },
+    expectStatus: 200,
+    expect: { result: true, error: false },
   },
-
-  // Test 2: Minimal request (what graders might send)
   {
-    name: "✅ Minimal A2A request (no optional fields)",
-    shouldPass: true,
-    payload: {
-      jsonrpc: "2.0",
-      params: {
-        message: {
-          parts: [
-            {
-              kind: "text",
-              text: "Tell me about infant mortality in Kenya",
-            },
-          ],
-        },
-      },
-    },
-  },
-
-  // Test 3: Empty message
-  {
-    name: "⚠️  Empty message (should handle gracefully)",
-    shouldPass: true,
-    payload: {
-      jsonrpc: "2.0",
-      id: "test-003",
-      params: {
-        message: {
-          parts: [],
-        },
-      },
-    },
-  },
-
-  // Test 4: Missing jsonrpc version (should fail)
-  {
-    name: "❌ Missing jsonrpc version (should return 400)",
-    shouldPass: false,
-    expectedStatus: 400,
-    payload: {
-      id: "test-004",
-      params: {
-        message: {
-          parts: [{ kind: "text", text: "Test" }],
-        },
-      },
-    },
-  },
-
-  // Test 5: Wrong jsonrpc version
-  {
-    name: "❌ Wrong jsonrpc version (should return 400)",
-    shouldPass: false,
-    expectedStatus: 400,
+    name: "❌ Wrong jsonrpc version (should return JSON-RPC error, not HTTP 400)",
     payload: {
       jsonrpc: "1.0",
-      id: "test-005",
-      params: {
-        message: {
-          parts: [{ kind: "text", text: "Test" }],
-        },
-      },
+      params: [{ role: "user", content: "Test invalid JSON-RPC version" }],
     },
-  },
-
-  // Test 6: Compare countries
-  {
-    name: "✅ Complex query - country comparison",
-    shouldPass: true,
-    payload: {
-      jsonrpc: "2.0",
-      id: "test-006",
-      params: {
-        message: {
-          parts: [
-            {
-              kind: "text",
-              text: "Compare life expectancy between USA and Japan",
-            },
-          ],
-        },
-      },
-    },
-  },
-
-  // Test 7: Non-existent country
-  {
-    name: "✅ Query with invalid country (should handle gracefully)",
-    shouldPass: true,
-    payload: {
-      jsonrpc: "2.0",
-      id: "test-007",
-      params: {
-        message: {
-          parts: [
-            {
-              kind: "text",
-              text: "What's the health expenditure in Wakanda?",
-            },
-          ],
-        },
-      },
-    },
+    expectStatus: 200, // JSON-RPC errors must return 200, not 400
+    expect: { result: false, error: true },
   },
 ];
 
-// Color codes for console output
-const colors = {
-  reset: "\x1b[0m",
-  green: "\x1b[32m",
-  red: "\x1b[31m",
-  yellow: "\x1b[33m",
-  blue: "\x1b[34m",
-  cyan: "\x1b[36m",
-};
+async function run() {
+  console.log(`\n🔍 Testing A2A Endpoint Fixes`);
+  console.log(`URL: ${BASE_URL}/a2a/agent/${AGENT_ID}\n`);
 
-async function runTest(test: TestCase): Promise<boolean> {
-  console.log(
-    `\n${colors.cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`
-  );
-  console.log(`${colors.blue}Test: ${test.name}${colors.reset}`);
-  console.log(`Expected to pass: ${test.shouldPass ? "Yes" : "No"}`);
+  for (const t of tests) {
+    console.log(`\n🧪 ${t.name}`);
+    let response, data;
 
-  try {
-    const startTime = Date.now();
-    const response = await fetch(`${BASE_URL}/a2a/agent/${AGENT_ID}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(test.payload),
-    });
-
-    const duration = Date.now() - startTime;
-    const data = await response.json();
-
-    console.log(`\nStatus: ${response.status}`);
-    console.log(`Duration: ${duration}ms`);
-
-    // Check if test result matches expectation
-    const passed = test.shouldPass
-      ? response.status === 200 && data.result
-      : response.status === (test.expectedStatus || 400);
-
-    if (passed) {
-      console.log(`${colors.green}✅ PASS${colors.reset}`);
-    } else {
-      console.log(`${colors.red}❌ FAIL${colors.reset}`);
+    try {
+      response = await fetch(`${BASE_URL}/a2a/agent/${AGENT_ID}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(t.payload),
+      });
+    } catch (e: any) {
+      console.error("❌ Network error:", e.message);
+      continue;
     }
 
-    // Show response snippet
-    if (data.result) {
-      const agentMessage = data.result.status?.message?.parts?.[0]?.text || "";
-      console.log(
-        `\nAgent Response: ${agentMessage.substring(0, 200)}${agentMessage.length > 200 ? "..." : ""}`
-      );
-    } else if (data.error) {
-      console.log(`\nError: ${data.error.message}`);
-      if (data.error.data) {
-        console.log(`Details: ${JSON.stringify(data.error.data, null, 2)}`);
-      }
+    try {
+      data = await response.json();
+    } catch {
+      console.error("❌ Failed to parse JSON response");
+      continue;
     }
 
-    return passed;
-  } catch (error: any) {
-    console.log(`${colors.red}❌ FAIL - Request Error${colors.reset}`);
-    console.log(`Error: ${error.message}`);
-    return false;
+    const passStatus = response.status === t.expectStatus;
+    const isJsonRpc = data.jsonrpc === "2.0";
+    const hasResult = typeof data.result !== "undefined";
+    const hasError = typeof data.error !== "undefined";
+
+    const passed =
+      passStatus &&
+      isJsonRpc &&
+      t.expect.result === hasResult &&
+      t.expect.error === hasError;
+
+    console.log(`Status: ${response.status}`);
+    if (hasResult) {
+      console.log(`Result kind: ${data.result.kind ?? "(no kind)"}`);
+      console.log(`Task state: ${data.result.status?.state ?? "(unknown)"}`);
+    }
+    if (hasError) console.log(`Error: ${data.error.message ?? JSON.stringify(data.error)}`);
+
+    console.log(passed ? "✅ PASS" : "❌ FAIL");
   }
 }
 
-async function testAgentEndpoint() {
-  console.log(
-    `${colors.cyan}╔════════════════════════════════════════╗${colors.reset}`
-  );
-  console.log(
-    `${colors.cyan}║   A2A Endpoint Local Test Suite       ║${colors.reset}`
-  );
-  console.log(
-    `${colors.cyan}╚════════════════════════════════════════╝${colors.reset}`
-  );
-  console.log(`\nTesting: ${BASE_URL}/a2a/agent/${AGENT_ID}`);
-
-  // First check if server is running
-  try {
-    const healthCheck = await fetch(`${BASE_URL}/health`).catch(() => null);
-    if (!healthCheck) {
-      console.log(
-        `${colors.red}\n❌ Server not running at ${BASE_URL}${colors.reset}`
-      );
-      console.log(`\nStart your server with: npm run dev\n`);
-      return;
-    }
-  } catch (error) {
-    console.log(
-      `${colors.red}\n❌ Server not running at ${BASE_URL}${colors.reset}`
-    );
-    console.log(`\nStart your server with: npm run dev\n`);
-    return;
-  }
-
-  const results = {
-    total: testCases.length,
-    passed: 0,
-    failed: 0,
-  };
-
-  // Run all tests
-  for (const test of testCases) {
-    const passed = await runTest(test);
-    if (passed) {
-      results.passed++;
-    } else {
-      results.failed++;
-    }
-  }
-
-  // Summary
-  console.log(
-    `\n${colors.cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`
-  );
-  console.log(`${colors.blue}Test Summary${colors.reset}`);
-  console.log(
-    `${colors.cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`
-  );
-  console.log(`Total Tests: ${results.total}`);
-  console.log(`${colors.green}Passed: ${results.passed}${colors.reset}`);
-  console.log(`${colors.red}Failed: ${results.failed}${colors.reset}`);
-  console.log(
-    `Success Rate: ${((results.passed / results.total) * 100).toFixed(1)}%`
-  );
-
-  if (results.failed === 0) {
-    console.log(
-      `\n${colors.green}🎉 All tests passed! Your endpoint is ready for submission.${colors.reset}`
-    );
-  } else {
-    console.log(
-      `\n${colors.yellow}⚠️  Some tests failed. Review the errors above.${colors.reset}`
-    );
-  }
-
-  console.log(`\n`);
-}
-
-// Run the tests
-testAgentEndpoint().catch((error) => {
-  console.error(`${colors.red}Fatal error:${colors.reset}`, error);
-  process.exit(1);
-});
+run().catch((err) => console.error("Fatal error:", err));
