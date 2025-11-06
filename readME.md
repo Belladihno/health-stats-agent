@@ -69,7 +69,7 @@ The Health Statistics Agent provides real-time health data from the World Bank A
 
 1. **Clone the repository**
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Belladihno/health-stats-agent
 cd health-stats-agent
 ```
 
@@ -95,7 +95,7 @@ GROQ_API_KEY=your-groq-api-key
 npm run dev
 ```
 
-The agent will be available at `http://localhost:4111`
+The agent will be available at `https://purring-orange-gigabyte.mastra.cloud/a2a/agent/healthAgent`
 
 ---
 
@@ -144,7 +144,7 @@ Passed: 10/10
 ### Test with curl
 
 ```bash
-curl -X POST http://localhost:4111/a2a/agent/healthAgent \
+curl -X POST https://purring-orange-gigabyte.mastra.cloud/a2a/agent/healthAgent \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
